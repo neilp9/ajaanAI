@@ -38,6 +38,8 @@ def _fn(name: str):
 def _run_or_spawn(name: str, wait: bool, **kwargs):
     fn = _fn(name)
     if wait:
+        typer.echo(f"Running {name} on Modal and waiting for it to finish (progress: uv run modal app logs "
+                   f"{APP_NAME}; result in `ajaanai status`)...")
         return fn.remote(**kwargs)
     call = fn.spawn(**kwargs)
     typer.echo(f"Started {name} on Modal (call {call.object_id}). Follow it with: uv run modal app logs {APP_NAME}")
@@ -150,7 +152,7 @@ def collect(
     dry_run: bool = typer.Option(False, help="Show what would be fetched"),
     limit: Optional[int] = typer.Option(None),
     local: bool = typer.Option(False, help="Run here against ./data instead of on Modal"),
-    wait: bool = typer.Option(True, help="Wait for the Modal job to finish"),
+    wait: bool = typer.Option(False, help="Block until the Modal job finishes and print a summary"),
 ):
     """Component 2: collect other parts of the site, configured in sources.yaml."""
     _setup_logging()

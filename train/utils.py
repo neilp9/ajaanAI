@@ -31,7 +31,7 @@ class OpenAIUtils:
         if name:            
             assistants = cls._client.beta.assistants.list()
             for a in assistants.data:
-                if a.name == name:
+                if name.lower() in a.name.lower():
                     result = a
         
         # print(f"DEBUG: found assistant: {result}")

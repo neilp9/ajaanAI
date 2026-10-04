@@ -40,11 +40,12 @@ class Command(BaseCommand):
         # loop to output response and read input from the terminal continuously
         while True:
             #self.stdout.write(f"DEBUG: thread: {thread}")
+            # Read the user's input and add it to the conversation
+            user_input : str = input("> ")
+            chat_utils.add_user_response(thread, user_input)
 
             # Output assistant's response
             response:str = chat_utils.get_assistant_response(assistant, thread)
             self.stdout.write(self.COLORS.RED + response + self.COLORS.ENDC)
 
-            # Read the user's input and add it to the conversation
-            user_input : str = input("> ")
-            chat_utils.add_user_response(thread, user_input)
+            

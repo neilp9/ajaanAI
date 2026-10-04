@@ -1,24 +1,32 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging
+*.egg-info/
+build/
+dist/
+
+# Virtual envs
+.venv/
+venv/
+
+# Secrets (keep .env_template tracked)
+.env
+**/.env
+
+# Local data (scraped catalog, sqlite, etc.)
+data/
+*.sqlite
+*.sqlite3
+*.db
+
+# OS / editor
 .DS_Store
-ajaanai/__pycache__/__init__.cpython-311.pyc
-ajaanai/__pycache__/settings.cpython-311.pyc
-ajaanai/__pycache__/urls.cpython-311.pyc
-chat/__pycache__/__init__.cpython-311.pyc
-chat/__pycache__/admin.cpython-311.pyc
-chat/__pycache__/apps.cpython-311.pyc
-chat/__pycache__/models.cpython-311.pyc
-chat/__pycache__/utils.cpython-311.pyc
-chat/management/__pycache__/__init__.cpython-311.pyc
-chat/management/commands/__pycache__/__init__.cpython-311.pyc
-chat/management/commands/__pycache__/chat.cpython-311.pyc
-train/__pycache__/__init__.cpython-311.pyc
-train/__pycache__/admin.cpython-311.pyc
-train/__pycache__/apps.cpython-311.pyc
-train/__pycache__/constants.cpython-311.pyc
-train/__pycache__/models.cpython-311.pyc
-train/__pycache__/utils.cpython-311.pyc
-train/__pycache__/views.cpython-311.pyc
-train/management/__pycache__/__init__.cpython-311.pyc
-train/management/commands/__pycache__/__init__.cpython-311.pyc
-train/management/commands/__pycache__/download_talks.cpython-311.pyc
-train/management/commands/__pycache__/merge_docs.cpython-311.pyc
-ajaanai/.env
+.idea/
+.vscode/

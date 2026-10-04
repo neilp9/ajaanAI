@@ -165,11 +165,15 @@ class Catalog:
         return self.db.execute("SELECT 1 FROM docs WHERE id=?", (doc_id,)).fetchone() is not None
 
     def pending_recheck(self, source: str, recheck_days: int, today: date | None = None) -> list[Doc]:
-        """Docs without a site transcript, young enough that one may still be posted."""
+        """Docs without a site transcript, young enough that one may still be posted.
+
+        Undated docs (e.g. 2002 talks named '0211n5-...') age from when we first catalogued them,
+        so they're re-checked for `recheck_days` and then dropped rather than forever.
+        """
         cutoff = ((today or date.today()) - timedelta(days=recheck_days)).isoformat()
         rows = self.db.execute(
             """SELECT * FROM docs WHERE source=? AND (text_source IS NULL OR text_source != 'site')
-               AND (date IS NULL OR date >= ?) ORDER BY date DESC""",
+               AND COALESCE(date, substr(first_seen, 1, 10)) >= ? ORDER BY date DESC""",
             (source, cutoff),
         ).fetchall()
         return [Doc.from_row(r) for r in rows]

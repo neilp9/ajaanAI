@@ -118,12 +118,17 @@ def evening(
     backfill: bool = typer.Option(False, help="Crawl every year page, not just recent talks"),
     years: Optional[str] = typer.Option(None, help="With --backfill: e.g. 2000-2010,2024"),
     limit: Optional[int] = typer.Option(None, help="Process at most N talks (testing)"),
-    transcribe: bool = typer.Option(True, help="Send talks past the grace period to ASR"),
+    transcribe: Optional[bool] = typer.Option(
+        None, "--transcribe/--no-transcribe",
+        help="Send talks past the grace period to ASR (costs money). Default: on for the daily run, "
+             "off for --backfill"),
     local: bool = typer.Option(False, help="Run here against ./data instead of on Modal"),
     wait: bool = typer.Option(False, help="Wait for the Modal job to finish"),
 ):
     """Component 1: evening talks (this is what the daily cron runs)."""
     _setup_logging()
+    if transcribe is None:
+        transcribe = not backfill  # a backfill never starts a large paid ASR run implicitly
     if local:
         from .catalog import open_catalog
         from .scrape.evening import run_evening
@@ -189,15 +194,23 @@ def transcribe(
     limit: Optional[int] = typer.Option(None),
     source: Optional[list[str]] = typer.Option(None, help="Restrict to these sources"),
     grace_days: Optional[int] = typer.Option(None, help="Override TRANSCRIBE_GRACE_DAYS"),
-    retry_failed: bool = typer.Option(False),
+    retry_failed: bool = typer.Option(False, help="Also retry talks whose transcription failed before"),
+    local: bool = typer.Option(False, help="Run here against ./data instead of the shared catalog on Modal"),
+    wait: bool = typer.Option(False, help="Wait for the Modal job to finish"),
 ):
-    """Transcribe catalogued talks that have no transcript (runs locally, calls the ASR API)."""
+    """Transcribe catalogued talks that have no transcript, with the configured ASR provider."""
     _setup_logging()
+    kwargs = dict(provider=provider, model=model, limit=limit, sources=source, grace_days=grace_days,
+                  retry_failed=retry_failed)
+    if not local:
+        out = _run_or_spawn("transcribe_job", wait, **kwargs)
+        if out:
+            typer.echo(out)
+        return
     from .catalog import open_catalog
     from .transcribe import transcribe_pending
 
-    ok, failed = transcribe_pending(open_catalog(), get_settings(), sources=source, grace_days=grace_days,
-                                    limit=limit, provider=provider, model=model, retry_failed=retry_failed)
+    ok, failed = transcribe_pending(open_catalog(), get_settings(), **kwargs)
     typer.echo(f"transcribed={len(ok)} failed={len(failed)}")
 
 
@@ -276,7 +289,12 @@ def promote(run_id: str):
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
         f.write(run_id)
     _modal_volume("put", "--force", VOLUME, f.name, "/models/CURRENT")
-    typer.echo(f"Serving {run_id} from the next cold start. Force it now with: modal app stop {APP_NAME} && ajaanai deploy")
+    if get_settings().serve_gpu_snapshot:
+        typer.echo(f"Marked {run_id} as current. Run `uv run ajaanai deploy` to serve it — the GPU snapshot "
+                   "still holds the previous model until a redeploy takes a new one.")
+    else:
+        typer.echo(f"Serving {run_id} from the next cold start. Force it now with: "
+                   f"uv run modal app stop {APP_NAME} && uv run ajaanai deploy")
 
 
 @app.command("eval")

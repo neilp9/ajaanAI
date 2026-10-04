@@ -6,6 +6,7 @@ Functions
   evening_job            cron (EVENING_CRON): new talks, transcript re-checks, ASR, RAG refresh
   evening_backfill       one-off full crawl of all years
   collect_job            run sources.yaml sources by name
+  transcribe_job         transcribe talks without text in the shared catalog
   sources_scheduler      hourly: runs sources whose `refresh:` cron is due
   whisper_transcribe     self-hosted ASR (TRANSCRIBE_PROVIDER=modal_whisper)
   rag_update             embed new/changed passages into the retrieval index
@@ -64,7 +65,10 @@ whisper_image = _finish(
 train_image = _finish(modal.Image.debian_slim(python_version="3.12").uv_pip_install(
     *CORE, "unsloth==2026.9.14", "trl>=0.20", "datasets"))  # unsloth bounds trl (<=0.24) and datasets
 vllm_image = _finish(modal.Image.debian_slim(python_version="3.12").uv_pip_install(
-    *CORE, "vllm==0.30.0", "sentence-transformers==6.1.0"))
+    *CORE, "vllm==0.30.0", "sentence-transformers==6.1.0").env({
+        "VLLM_SERVER_DEV_MODE": "1",  # exposes /sleep and /wake_up (used around the snapshot)
+        "TORCHINDUCTOR_COMPILE_THREADS": "1",  # recommended by Modal for snapshot compatibility
+    }))
 
 log = logging.getLogger("ajaanai")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -136,6 +140,26 @@ def evening_backfill(years: str | None = None, limit: int | None = None, transcr
 
 
 @app.function(image=base_image, volumes={DATA: volume}, secrets=[secret], timeout=24 * 3600)
+def transcribe_job(provider: str | None = None, model: str | None = None, limit: int | None = None,
+                   sources: list[str] | None = None, grace_days: int | None = None,
+                   retry_failed: bool = False) -> dict:
+    """Transcribe talks without text in the shared catalog (`ajaanai transcribe`)."""
+    from ajaanai.transcribe import transcribe_pending
+
+    with _catalog_writer("transcribe_job") as checkpoint:
+        cat, _, s = _ctx()
+        try:
+            ok, failed = transcribe_pending(cat, s, sources=sources, grace_days=grace_days, limit=limit,
+                                            provider=provider, model=model, retry_failed=retry_failed,
+                                            checkpoint=checkpoint)
+        finally:
+            cat.close()
+    if ok:
+        rag_update.spawn()
+    return {"transcribed": len(ok), "failed": len(failed), "provider": provider or s.transcribe_provider}
+
+
+@app.function(image=base_image, volumes={DATA: volume}, secrets=[secret], timeout=24 * 3600)
 def collect_job(names: list[str] | None = None, limit: int | None = None, dry_run: bool = False):
     from ajaanai.scrape.collections import collect, load_sources
 
@@ -188,7 +212,8 @@ def whisper_transcribe(audio_url: str, model: str, glossary: list[str]) -> str:
         return paragraphize(" ".join(s.text.strip() for s in segments))
 
 
-@app.function(image=embed_image, gpu="L4", volumes={DATA: volume}, secrets=[secret], timeout=6 * 3600)
+@app.function(image=embed_image, gpu="L4", volumes={DATA: volume}, secrets=[secret], timeout=6 * 3600,
+              max_containers=1)  # one index writer at a time; later calls queue
 def rag_update() -> int:
     from ajaanai.catalog import open_catalog
     from ajaanai.rag.index import Embedder, RagIndex
@@ -242,46 +267,95 @@ def _proxy_config(upstream_base: str, upstream_model: str, upstream_key: str | N
     )
 
 
-def _retriever(device: str):
-    from ajaanai.rag.index import Embedder, RagIndex, Retriever, format_hits
+def _embedder(device: str):
+    from ajaanai.rag.index import Embedder
+
+    s = get_settings()
+    return Embedder(s.embed_model, device=device) if s.rag_enabled else None
+
+
+def _retriever(embedder):
+    """Loads the retrieval index fresh (it changes daily), around an already-loaded embedder."""
+    from ajaanai.rag.index import RagIndex, Retriever, format_hits
 
     s = get_settings()
     idx = RagIndex(s.data_dir / "rag")
-    if not s.rag_enabled or len(idx) == 0:
+    if embedder is None or len(idx) == 0:
         return None
-    r = Retriever(idx, Embedder(s.embed_model, device=device), s.rag_top_k)
+    r = Retriever(idx, embedder, s.rag_top_k)
     return lambda q: format_hits(r(q))
+
+
+def _wait_vllm_healthy(proc: subprocess.Popen, timeout_s: float = 1700) -> None:
+    import httpx
+
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError(f"vLLM exited with code {proc.returncode}")
+        try:
+            if httpx.get(f"http://127.0.0.1:{VLLM_PORT}/health", timeout=2).status_code == 200:
+                return
+        except httpx.HTTPError:
+            pass
+        time.sleep(1)
+    raise RuntimeError("vLLM did not become healthy")
+
+
+def _vllm_post(path: str, json: dict | None = None) -> None:
+    import httpx
+
+    httpx.post(f"http://127.0.0.1:{VLLM_PORT}{path}", json=json, timeout=300).raise_for_status()
+
+
+SNAPSHOT = S.serve_gpu_snapshot
 
 
 @app.cls(image=vllm_image, gpu=PROFILE.serve_gpu, volumes={DATA: volume}, secrets=[secret],
          scaledown_window=S.serve_scaledown_window_s, min_containers=S.serve_min_containers,
-         timeout=3600, startup_timeout=1800)
+         timeout=3600, startup_timeout=1800, enable_memory_snapshot=SNAPSHOT,
+         experimental_options={"enable_gpu_snapshot": True} if SNAPSHOT else None)
 @modal.concurrent(max_inputs=32)
 class Serve:
-    @modal.enter()
-    def start(self):
-        import httpx
+    """vLLM + proxy. With SERVE_GPU_SNAPSHOT, `boot` runs once per deploy and is snapshotted;
+    cold starts then only run `resume` (wake vLLM, load today's retrieval index)."""
 
+    @modal.enter(snap=SNAPSHOT)
+    def boot(self):
         from ajaanai.train.finetune import current_model_path
 
         get_settings.cache_clear()
         s = get_settings()
         profile = active_profile()
         model = str(current_model_path(s.data_dir / "models") or profile.hf_id)
-        log.info("starting vLLM for %s (%s)", model, profile.name)
-        self.proc = subprocess.Popen(profile.vllm_args(model, SERVED_NAME, VLLM_PORT))
-        self.retrieve = _retriever("cuda")
-        deadline = time.time() + 1700
-        while time.time() < deadline:
-            if self.proc.poll() is not None:
-                raise RuntimeError("vLLM exited during startup")
-            try:
-                if httpx.get(f"http://127.0.0.1:{VLLM_PORT}/health", timeout=2).status_code == 200:
-                    return
-            except httpx.HTTPError:
-                pass
-            time.sleep(2)
-        raise RuntimeError("vLLM did not become healthy")
+        log.info("booting vLLM for %s (%s), snapshot=%s", model, profile.name, SNAPSHOT)
+        self.proc = subprocess.Popen(profile.vllm_args(model, SERVED_NAME, VLLM_PORT, sleep_mode=SNAPSHOT,
+                                                       max_num_seqs=s.serve_max_num_seqs))
+        _wait_vllm_healthy(self.proc)
+        if SNAPSHOT:
+            # Exercise both reasoning paths so compiled kernels land in the snapshot, then sleep:
+            # weights move to CPU memory and the KV cache is dropped, keeping the snapshot lean.
+            for think in (False, True, False):
+                _vllm_post("/v1/chat/completions", {
+                    "model": SERVED_NAME, "max_tokens": 16,
+                    "messages": [{"role": "user", "content": "How should I begin meditating?"}],
+                    **({"chat_template_kwargs": profile.chat_template_kwargs(think)}
+                       if profile.chat_template_kwargs(think) else {}),
+                })
+            _vllm_post("/sleep?level=1")
+        self.embedder = _embedder("cuda")  # static model: fine to keep in the snapshot
+
+    @modal.enter()
+    def resume(self):
+        if SNAPSHOT:
+            _vllm_post("/wake_up")
+            _wait_vllm_healthy(self.proc, timeout_s=600)
+        try:  # see the latest retrieval index, not the one from snapshot time
+            volume.reload()
+        except Exception as e:
+            log.warning("volume reload failed (%s); using the mounted index", e)
+        get_settings.cache_clear()
+        self.retrieve = _retriever(self.embedder)
 
     @modal.method()
     def warm(self) -> bool:
@@ -311,7 +385,7 @@ def proxy():
     s = get_settings()
     s.require("upstream_base_url", "upstream_model")
     cfg = _proxy_config(s.upstream_base_url, s.upstream_model, s.upstream_api_key, hosted=True)
-    return create_app(cfg, retrieve=_retriever("cpu"))
+    return create_app(cfg, retrieve=_retriever(_embedder("cpu")))
 
 
 @app.function(image=base_image, secrets=[secret])

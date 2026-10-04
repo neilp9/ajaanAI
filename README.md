@@ -104,10 +104,16 @@ The proxy is an OpenAI-compatible `/v1/chat/completions`. For each turn it:
 - speaks short fillers in his register ("Hmm…", "Let's look at that…") every `FILLER_INTERVAL_S`
   seconds while the model thinks (`FILLER_MODE`).
 
-The GPU scales to zero. A call that comes in after a quiet period takes about 1–2 minutes to
-start the GPU. ElevenLabs' conversation-start webhook wakes the GPU as the call connects, and
-the greeting covers part of the wait. For instant answers at set times, set
-`SERVE_MIN_CONTAINERS=1` (about $2/hour on an L40S).
+The GPU scales to zero. To keep cold starts short:
+- **GPU snapshot (on by default, `SERVE_GPU_SNAPSHOT`).** Each deploy boots vLLM once, warms it
+  up, puts it to sleep, and Modal snapshots the container. Cold starts restore that snapshot
+  instead of booting, which should take roughly 10–30 s rather than 1–2 min. The first cold start
+  after a deploy is still slow while the snapshot is taken. The model is frozen into the snapshot,
+  so **redeploy after `ajaanai promote`** or after changing serving settings. The retrieval index
+  is loaded fresh on every start.
+- **Wake-up on call.** ElevenLabs' conversation-start webhook wakes the GPU as the call connects,
+  and the greeting covers part of the wait.
+- **Always warm.** For instant answers, set `SERVE_MIN_CONTAINERS=1` (about $2/hour on an L40S).
 
 ## 5. Phone
 

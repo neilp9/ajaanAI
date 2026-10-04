@@ -37,10 +37,17 @@ class ModelProfile:
     vllm_tool_parser: str | None = None  # lets the voice platform's tools (e.g. end_call) work
     notes: str = ""
 
-    def vllm_args(self, model_path: str, served_name: str, port: int) -> list[str]:
+    def vllm_args(self, model_path: str, served_name: str, port: int, *, sleep_mode: bool = False,
+                  max_num_seqs: int | None = None) -> list[str]:
+        """`sleep_mode` enables vLLM's /sleep and /wake_up so a GPU memory snapshot can be taken
+        with weights offloaded and the KV cache dropped (much smaller, faster to restore)."""
         args = ["vllm", "serve", model_path, "--served-model-name", served_name, "--host", "127.0.0.1",
                 "--port", str(port), "--max-model-len", str(self.max_model_len),
                 "--gpu-memory-utilization", "0.85"]
+        if sleep_mode:
+            args += ["--enable-sleep-mode", "--max-num-batched-tokens", str(self.max_model_len)]
+        if max_num_seqs:
+            args += ["--max-num-seqs", str(max_num_seqs)]
         if self.serve_quantization:
             args += ["--quantization", self.serve_quantization]
         if self.vllm_reasoning_parser:

@@ -32,13 +32,18 @@ class ElevenLabsScribe:
     def __init__(self, api_key: str, model: str | None = None):
         self.key, self.model = api_key, model or self.default_model
 
+    def request(self, audio_url: str, glossary: list[str]) -> httpx.Request:
+        # Multipart form with repeated `keyterms` fields. httpx only accepts repeated fields via
+        # `files` entries of the form (name, (None, value)) — a list passed as `data` fails.
+        fields = [("model_id", self.model), ("cloud_storage_url", audio_url), ("language_code", "en"),
+                  ("tag_audio_events", "false"), ("diarize", "false")]
+        fields += [("keyterms", t) for t in glossary[:1000] if len(t) <= 50]
+        return httpx.Request("POST", "https://api.elevenlabs.io/v1/speech-to-text",
+                             files=[(k, (None, v)) for k, v in fields], headers={"xi-api-key": self.key})
+
     def transcribe(self, audio_url: str, glossary: list[str]) -> str:
-        data = [("model_id", self.model), ("cloud_storage_url", audio_url), ("language_code", "en"),
-                ("tag_audio_events", "false"), ("diarize", "false")]
-        data += [("keyterms", t) for t in glossary[:1000] if len(t) <= 50]
-        resp = httpx.post("https://api.elevenlabs.io/v1/speech-to-text", data=data,
-                          headers={"xi-api-key": self.key}, timeout=TIMEOUT)
-        return _check(resp)["text"]
+        with httpx.Client(timeout=TIMEOUT) as client:
+            return _check(client.send(self.request(audio_url, glossary)))["text"]
 
 
 class Deepgram:

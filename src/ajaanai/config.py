@@ -74,8 +74,11 @@ class Settings(BaseSettings):
     upstream_base_url: str | None = None  # for openai_compatible, e.g. https://api.openai.com/v1
     upstream_api_key: str | None = None
     upstream_model: str | None = None  # e.g. "ft:gpt-4.1-mini:org::abc123"
-    serve_model_path: str = "/data/models/current"  # merged fine-tune; falls back to base weights
     serve_scaledown_window_s: int = 600
+    # GPU memory snapshot: restore a warmed-up vLLM instead of booting it (cold start ~1-2 min ->
+    # ~10-30 s). Snapshots are taken per deploy; redeploy after `promote` or serving-setting changes.
+    serve_gpu_snapshot: bool = True
+    serve_max_num_seqs: int = 8  # concurrent conversations per GPU; small keeps snapshots lean
     serve_min_containers: int = 0
     endpoint_url: str | None = None  # filled in after `ajaanai serve-deploy`
     rag_enabled: bool = True

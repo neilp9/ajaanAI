@@ -162,3 +162,13 @@ async def test_app_streams_openai_compatible_sse(respx_mock):
     sent = json.loads(respx_mock.calls.last.request.content)
     assert "REFERENCE" in sent["messages"][0]["content"]
     assert sent["chat_template_kwargs"] == {"enable_thinking": True}
+
+
+def test_vllm_args_snapshot_flags():
+    plain = QWEN.vllm_args("/m", "ajaan", 8000)
+    assert "--enable-sleep-mode" not in plain and "--max-num-seqs" not in plain
+    snap = QWEN.vllm_args("/m", "ajaan", 8000, sleep_mode=True, max_num_seqs=8)
+    assert "--enable-sleep-mode" in snap
+    assert snap[snap.index("--max-num-seqs") + 1] == "8"
+    assert snap[snap.index("--max-num-batched-tokens") + 1] == str(QWEN.max_model_len)
+    assert snap[snap.index("--reasoning-parser") + 1] == "qwen3"  # profile flags still present

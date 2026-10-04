@@ -42,6 +42,20 @@ def test_grace_period_and_recheck_windows(tmp_path):
     assert {d.id for d in cat.pending_recheck("evening", 120, today=today)} == {"a/new", "a/old"}
 
 
+def test_undated_docs_age_out_of_recheck(tmp_path):
+    cat = Catalog(tmp_path / "c.sqlite")
+    cat.upsert_listing(make_doc("a/undated", None))
+    seen = cat.get("a/undated")
+    assert seen.date is None
+    first_seen = date.fromisoformat(cat.db.execute(
+        "SELECT substr(first_seen, 1, 10) FROM docs WHERE id='a/undated'").fetchone()[0])
+    from datetime import timedelta
+
+    assert [d.id for d in cat.pending_recheck("evening", 120, today=first_seen)] == ["a/undated"]
+    assert [d.id for d in cat.pending_recheck("evening", 120, today=first_seen + timedelta(days=119))] == ["a/undated"]
+    assert cat.pending_recheck("evening", 120, today=first_seen + timedelta(days=121)) == []
+
+
 def test_parse_years():
     assert parse_years("2000-2002,2010") == {2000, 2001, 2002, 2010}
     assert parse_years(None) is None

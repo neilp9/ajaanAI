@@ -1,0 +1,83 @@
+# Component 2 sources: everything on dhammatalks.org beyond the evening talks.
+#
+#   ajaanai collect --list              show sources + catalog counts
+#   ajaanai collect                     run every source with enabled: true
+#   ajaanai collect books lectures      run just these (even if disabled)
+#   ajaanai collect books --dry-run     show what would be fetched
+#
+# Fields
+#   kind:        book | article | audio_series
+#   parser:      book | audio_index | article_index
+#   start_urls:  site-relative pages to start from
+#   include / exclude: shell-style globs matched against the url (and the book key for books)
+#   author:      auto (detect from the listing) | thanissaro | translation | other
+#                Only `thanissaro` text is used to train his speaking style; other authors
+#                (e.g. his translations of Ajaan Lee) still go into the retrieval index.
+#   follow_years: audio_index only — also crawl the /YYYY/ archive pages
+#   skip_anthologies: book only — skip study guides / Pali-canon anthologies
+#   transcribe:  audio only — send items without a transcript to the ASR provider
+#   enabled:     included in a bare `ajaanai collect`
+#   refresh:     optional cron (UTC, hour granularity) to re-run this source on Modal,
+#                e.g. "0 10 * * 1" = Mondays 10:00. Checked hourly; run `ajaanai deploy` after edits.
+
+sources:
+  books:
+    description: Books and essay collections (per-section HTML on the site)
+    kind: book
+    parser: book
+    start_urls: [/books/]
+    author: auto
+    exclude:
+      - "*Meditations*"        # transcribed evening talks — already covered by the evening component
+      - "*meditations_*"
+      - "*chanting_guide*"
+      - "*ChantingGuide*"
+      - "*divinemantra*"
+      - "*mettaLuang*"
+    enabled: true
+
+  morning_talks:
+    description: Short morning talks (most have site transcripts)
+    kind: audio_series
+    parser: audio_index
+    start_urls: [/audio/morning/]
+    follow_years: true
+    author: thanissaro
+    transcribe: true
+    enabled: false
+
+  lectures:
+    description: Lectures and retreat talks given away from the monastery (audio only)
+    kind: audio_series
+    parser: audio_index
+    start_urls: [/audio/lectures/]
+    author: thanissaro
+    transcribe: true
+    enabled: false
+
+  guided_meditations:
+    description: Guided meditations (audio only)
+    kind: audio_series
+    parser: audio_index
+    start_urls: [/mp3_guidedMed_index.html]
+    author: thanissaro
+    transcribe: true
+    enabled: false
+
+  topical_collections:
+    description: Talks grouped by theme (mostly duplicates of evening talks; skipped if already catalogued)
+    kind: audio_series
+    parser: audio_index
+    start_urls: [/mp3_topical_index.html, /mp3_collections_index.html]
+    author: thanissaro
+    transcribe: true
+    enabled: false
+
+  vinaya_essays:
+    description: Essays on monastic discipline
+    kind: article
+    parser: article_index
+    start_urls: [/vinaya_essays_index.html]
+    include: ["/vinaya/*"]
+    author: thanissaro
+    enabled: false

@@ -1,24 +1,13 @@
 .DS_Store
-ajaanai/__pycache__/__init__.cpython-311.pyc
-ajaanai/__pycache__/settings.cpython-311.pyc
-ajaanai/__pycache__/urls.cpython-311.pyc
-chat/__pycache__/__init__.cpython-311.pyc
-chat/__pycache__/admin.cpython-311.pyc
-chat/__pycache__/apps.cpython-311.pyc
-chat/__pycache__/models.cpython-311.pyc
-chat/__pycache__/utils.cpython-311.pyc
-chat/management/__pycache__/__init__.cpython-311.pyc
-chat/management/commands/__pycache__/__init__.cpython-311.pyc
-chat/management/commands/__pycache__/chat.cpython-311.pyc
-train/__pycache__/__init__.cpython-311.pyc
-train/__pycache__/admin.cpython-311.pyc
-train/__pycache__/apps.cpython-311.pyc
-train/__pycache__/constants.cpython-311.pyc
-train/__pycache__/models.cpython-311.pyc
-train/__pycache__/utils.cpython-311.pyc
-train/__pycache__/views.cpython-311.pyc
-train/management/__pycache__/__init__.cpython-311.pyc
-train/management/commands/__pycache__/__init__.cpython-311.pyc
-train/management/commands/__pycache__/download_talks.cpython-311.pyc
-train/management/commands/__pycache__/merge_docs.cpython-311.pyc
-ajaanai/.env
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# secrets
+.env
+*.env
+!.env.example
+
+# local data (catalog, audio, datasets, models live here or on the Modal volume)
+data/

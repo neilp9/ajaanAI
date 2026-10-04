@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ajaanAI</title>
+<meta name="description" content="Text or call an AI companion trained on the Dhamma talks of Thanissaro Bhikkhu. Free, as the Dhamma is given.">
+<meta name="theme-color" content="#f4efe4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141a15" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Karla:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Palette: laterite earth, jackfruit-heartwood dye (the forest robe), deep canopy, rain-washed paper. */
+  :root {
+    --paper:   #f4efe4;
+    --paper-2: #ebe4d4;
+    --ink:     #26302a;
+    --ink-2:   #5b6459;
+    --ink-3:   #8a8f82;
+    --robe:    #9a5a1e;
+    --robe-ink:#fbf6ec;
+    --canopy:  #2f4a39;
+    --line:    #d8cfbb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:   #141a15;
+      --paper-2: #1b231d;
+      --ink:     #e9e2d2;
+      --ink-2:   #b3ad9e;
+      --ink-3:   #7d7c70;
+      --robe:    #c98a46;
+      --robe-ink:#18130c;
+      --canopy:  #9fbaa4;
+      --line:    #2c372f;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    min-height: 100svh;
+    background: var(--paper);
+    color: var(--ink);
+    font: 400 17px/1.6 "Karla", system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* A faint wash of shade from above, like light through a canopy. */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background: radial-gradient(120% 60% at 50% -10%, var(--paper-2), transparent 70%);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  main {
+    width: 100%;
+    max-width: 30rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 12vh 0 8vh;
+    text-align: center;
+  }
+
+  .mark { width: 56px; height: 56px; margin: 0 auto 2.5rem; color: var(--canopy); }
+  .mark svg { width: 100%; height: 100%; overflow: visible; }
+  .mark .leaf { transform-origin: 50% 90%; animation: breathe 9s ease-in-out infinite; }
+  @keyframes breathe {
+    0%, 100% { transform: rotate(-2deg) scale(0.98); }
+    50%      { transform: rotate(2deg)  scale(1.02); }
+  }
+
+  .pali {
+    font: italic 400 1rem/1.4 "Cormorant Garamond", Georgia, serif;
+    color: var(--robe);
+    letter-spacing: 0.02em;
+  }
+  h1 {
+    font: 400 clamp(2.4rem, 8vw, 3.2rem)/1.1 "Cormorant Garamond", Georgia, serif;
+    letter-spacing: -0.01em;
+    margin: 0.75rem 0 1.25rem;
+    text-wrap: balance;
+  }
+  .lede { color: var(--ink-2); max-width: 26rem; margin: 0 auto; text-wrap: pretty; }
+
+  .actions {
+    display: grid;
+    gap: 0.75rem;
+    margin: 2.75rem auto 1rem;
+    max-width: 20rem;
+    width: 100%;
+  }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+    min-height: 3.25rem;
+    padding: 0 1.5rem;
+    border-radius: 999px;
+    font: 500 1rem/1 "Karla", system-ui, sans-serif;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    transition: background-color .4s ease, border-color .4s ease, transform .4s ease;
+  }
+  .btn svg { width: 18px; height: 18px; flex: none; }
+  .btn-primary { background: var(--robe); color: var(--robe-ink); }
+  .btn-primary:hover { background: color-mix(in srgb, var(--robe) 88%, var(--ink)); }
+  .btn-quiet { border: 1px solid var(--line); color: var(--ink); }
+  .btn-quiet:hover { border-color: var(--ink-3); }
+  .btn:active { transform: scale(0.985); }
+  .btn:focus-visible, .ask a:focus-visible { outline: 2px solid var(--canopy); outline-offset: 3px; }
+
+  .number { font-size: 0.9rem; color: var(--ink-3); letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+
+  .path {
+    width: 100%; height: 1px; margin: 4.5rem 0 3rem;
+    background: linear-gradient(90deg, transparent, var(--line) 20%, var(--line) 80%, transparent);
+    position: relative;
+  }
+  /* Walking meditation: one slow step back and forth along the path. */
+  .path::after {
+    content: ""; position: absolute; top: -2px; left: 20%;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--robe);
+    animation: walk 28s ease-in-out infinite alternate;
+  }
+  @keyframes walk { to { left: calc(80% - 5px); } }
+
+  .ask h2 {
+    font: 500 0.75rem/1 "Karla", system-ui, sans-serif;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 1.25rem;
+  }
+  .ask ul { list-style: none; display: grid; gap: 0.25rem; }
+  .ask a {
+    display: block;
+    padding: 0.55rem 0.5rem;
+    border-radius: 6px;
+    font: italic 400 1.2rem/1.35 "Cormorant Garamond", Georgia, serif;
+    color: var(--ink);
+    text-decoration: none;
+    transition: color .4s ease;
+  }
+  .ask a:hover { color: var(--robe); }
+
+  footer {
+    width: 100%; max-width: 30rem;
+    padding: 2rem 0 2.5rem;
+    border-top: 1px solid var(--line);
+    font-size: 0.8rem; line-height: 1.6;
+    color: var(--ink-3);
+    text-align: center;
+  }
+  footer p + p { margin-top: 0.6rem; }
+  footer a { color: var(--ink-2); text-underline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mark .leaf, .path::after { animation: none; }
+    .btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark" aria-hidden="true">
+    <!-- Bodhi leaf: heart-shaped blade drawing out to a long drip tip. -->
+    <svg viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+      <g class="leaf">
+        <path d="M28 41 V53"/>
+        <path d="M28 41 C22 46 9 43 9 31 C9 21 20 15 28 3 C36 15 47 21 47 31 C47 43 34 46 28 41 Z"/>
+        <path d="M28 41 V11" opacity=".6"/>
+        <path d="M28 20 L22 16 M28 20 L34 16 M28 28 L17 22 M28 28 L39 22 M28 36 L15 31 M28 36 L41 31" opacity=".45"/>
+      </g>
+    </svg>
+  </div>
+
+  <p class="pali">Sabbe sattā sukhitā hontu</p>
+  <h1>A quiet place to ask about the practice</h1>
+  <p class="lede">
+    An AI companion grounded in the Dhamma talks and writings of Thanissaro&nbsp;Bhikkhu (Ajaan&nbsp;Geoff).
+    Text a question or call and talk it through, at any hour.
+  </p>
+
+  <div class="actions">
+    <a class="btn btn-primary" data-sms href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>
+      Start texting
+    </a>
+    <a class="btn btn-quiet" data-tel href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>
+      Call
+    </a>
+  </div>
+  <p class="number" data-display></p>
+
+  <div class="path" aria-hidden="true"></div>
+
+  <section class="ask">
+    <h2>Or begin with</h2>
+    <ul>
+      <li><a data-sms data-body="How should I work with restlessness when I sit?" href="#">How should I work with restlessness when I sit?</a></li>
+      <li><a data-sms data-body="What does it mean to make the breath comfortable?" href="#">What does it mean to make the breath comfortable?</a></li>
+      <li><a data-sms data-body="How can I practice goodwill toward someone difficult?" href="#">How can I practice goodwill toward someone difficult?</a></li>
+    </ul>
+  </section>
+</main>
+
+<footer>
+  <p>
+    This is an AI, not Ajaan Geoff, and it is not affiliated with or endorsed by Metta Forest Monastery.
+    It can be wrong. For the teachings themselves, go to <a href="https://www.dhammatalks.org">dhammatalks.org</a>.
+  </p>
+  <p>Offered free of charge. Source material © Thanissaro Bhikkhu, used under CC&nbsp;BY‑NC&nbsp;4.0.</p>
+</footer>
+
+<script>
+  // The line's number, E.164. Keep in sync with TWILIO_PHONE_NUMBER.
+  const PHONE = "+10000000000";
+
+  const pretty = PHONE.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "+1 ($1) $2-$3");
+  document.querySelector("[data-display]").textContent = pretty;
+  document.querySelectorAll("[data-tel]").forEach(a => { a.href = `tel:${PHONE}`; });
+  document.querySelectorAll("[data-sms]").forEach(a => {
+    const body = a.dataset.body;
+    // "?&body=" is understood by both iOS and Android messaging apps.
+    a.href = body ? `sms:${PHONE}?&body=${encodeURIComponent(body)}` : `sms:${PHONE}`;
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,627 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Dhammatalks.org Evening Talks</title>
+    <link>https://www.dhammatalks.org/audio/evening/</link>
+    <description>These talks were given by Thanissaro Bhikkhu during the evening meditation sessions at Metta Forest Monastery.</description>
+    <language>en-US</language>
+    <lastBuildDate>Sun, 04 Oct 2026 02:43:14 -0000</lastBuildDate>
+    <copyright>
+      Copyright 2026, Thanissaro Bhikkhu. This work is licensed under the Creative Commons Attribution-NonCommercial 4.0 Unported License. To view a copy of this license, visit http://creativecommons.org/licenses/by-nc/4.0/. Any sale, including by non-profit entities for non-profit purposes, shall be considered 'commercial' under this license.
+    </copyright>
+    <itunes:author>Thanissaro Bhikkhu</itunes:author>
+    <itunes:owner>
+      <itunes:name>dhammatalks.org</itunes:name>
+      <itunes:email>podcast@dhammatalks.org</itunes:email>
+    </itunes:owner>
+    <itunes:image href="https://www.dhammatalks.org/static/images/dto-logo-xl.png" />
+    <itunes:category text="Religion &amp; Spirituality">
+      <itunes:category text="Buddhism" />
+    </itunes:category>
+    <itunes:explicit>false</itunes:explicit>
+    <itunes:new-feed-url>https://www.dhammatalks.org/rss/evening.xml</itunes:new-feed-url>
+    <item>
+      <title>Cornered Through Samvega</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Cornered Through Samvega"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/261003_Cornered_Through_Samvega.mp3"
+                 type="audio/mpeg"
+                 length="5419008"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/261003-cornered-through-samvega.html</link>
+      <pubDate>Sun, 04 Oct 2026 02:42:03 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/261003_Cornered_Through_Samvega.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>695</itunes:duration>
+    </item>
+    <item>
+      <title>Build Your Raft Well</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Build Your Raft Well"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/261002_Build_Your_Raft_Well.mp3"
+                 type="audio/mpeg"
+                 length="5070848"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/261002-build-your-raft-well.html</link>
+      <pubDate>Sat, 03 Oct 2026 02:43:47 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/261002_Build_Your_Raft_Well.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>659</itunes:duration>
+    </item>
+    <item>
+      <title>When Your Energy Is Down</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "When Your Energy Is Down"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/261001_When_Your_Energy_Is_Down.mp3"
+                 type="audio/mpeg"
+                 length="4270080"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/261001-when-your-energy-is-down.html</link>
+      <pubDate>Fri, 02 Oct 2026 02:58:51 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/261001_When_Your_Energy_Is_Down.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>554</itunes:duration>
+    </item>
+    <item>
+      <title>Don&#39;t Stop with Awareness Itself</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Don&#39;t Stop with Awareness Itself"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260930_Don&#39;t_Stop_with_Awareness_Itself.mp3"
+                 type="audio/mpeg"
+                 length="5984256"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260930-don-t-stop-with-awareness-itself.html</link>
+      <pubDate>Thu, 01 Oct 2026 02:24:23 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260930_Don&#39;t_Stop_with_Awareness_Itself.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>777</itunes:duration>
+    </item>
+    <item>
+      <title>When a Loved One Has Died</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "When a Loved One Has Died"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260929_When_a_Loved_One_Has_Died.mp3"
+                 type="audio/mpeg"
+                 length="4474880"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260929-when-a-loved-one-has-died.html</link>
+      <pubDate>Wed, 30 Sep 2026 01:44:37 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260929_When_a_Loved_One_Has_Died.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>588</itunes:duration>
+    </item>
+    <item>
+      <title>The Path at Home</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "The Path at Home"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260928_The_Path_at_Home.mp3"
+                 type="audio/mpeg"
+                 length="4771840"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260928-the-path-at-home.html</link>
+      <pubDate>Tue, 29 Sep 2026 02:27:25 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260928_The_Path_at_Home.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>658</itunes:duration>
+    </item>
+    <item>
+      <title>Equanimity &amp; Concentration</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Equanimity &amp; Concentration"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260927_Equanimity_&amp;_Concentration.mp3"
+                 type="audio/mpeg"
+                 length="4913152"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260927-equanimity-concentration.html</link>
+      <pubDate>Tue, 29 Sep 2026 02:27:26 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260927_Equanimity_&amp;_Concentration.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>597</itunes:duration>
+    </item>
+    <item>
+      <title>Emotions, Agency, &amp; Self-esteem</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Emotions, Agency, &amp; Self-esteem"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260926_Emotions,_Agency,_&amp;_Self-esteem.mp3"
+                 type="audio/mpeg"
+                 length="4210688"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260926-emotions-agency-self-esteem.html</link>
+      <pubDate>Sun, 27 Sep 2026 01:33:05 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260926_Emotions,_Agency,_&amp;_Self-esteem.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>557</itunes:duration>
+    </item>
+    <item>
+      <title>Interruptions, Big &amp; Small</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Interruptions, Big &amp; Small"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260924_Interruptions,_Big_&amp;_Small.mp3"
+                 type="audio/mpeg"
+                 length="4339712"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260924-interruptions-big-small.html</link>
+      <pubDate>Fri, 25 Sep 2026 01:57:45 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260924_Interruptions,_Big_&amp;_Small.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>560</itunes:duration>
+    </item>
+    <item>
+      <title>Fabricated Path, Unfabricated Goal</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Fabricated Path, Unfabricated Goal"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260922_Fabricated_Path,_Unfabricated_Goal.mp3"
+                 type="audio/mpeg"
+                 length="5203968"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260922-fabricated-path-unfabricated-goal.html</link>
+      <pubDate>Wed, 23 Sep 2026 01:08:43 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260922_Fabricated_Path,_Unfabricated_Goal.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>681</itunes:duration>
+    </item>
+    <item>
+      <title>Humor</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Humor"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260921_Humor.mp3"
+                 type="audio/mpeg"
+                 length="3528704"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260921-humor.html</link>
+      <pubDate>Tue, 22 Sep 2026 02:54:06 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260921_Humor.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>453</itunes:duration>
+    </item>
+    <item>
+      <title>More than Just Calm</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "More than Just Calm"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260920_More_than_Just_Calm.mp3"
+                 type="audio/mpeg"
+                 length="6402048"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260920-more-than-just-calm.html</link>
+      <pubDate>Tue, 22 Sep 2026 02:54:06 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260920_More_than_Just_Calm.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>783</itunes:duration>
+    </item>
+    <item>
+      <title>Trauma</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Trauma"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260919_Trauma.mp3"
+                 type="audio/mpeg"
+                 length="4626432"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260919-trauma.html</link>
+      <pubDate>Sun, 20 Sep 2026 02:04:33 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260919_Trauma.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>623</itunes:duration>
+    </item>
+    <item>
+      <title>Fears to Be Feared</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Fears to Be Feared"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260918_Fears_to_Be_Feared.mp3"
+                 type="audio/mpeg"
+                 length="6926336"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260918-fears-to-be-feared.html</link>
+      <pubDate>Sat, 19 Sep 2026 02:53:33 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260918_Fears_to_Be_Feared.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>921</itunes:duration>
+    </item>
+    <item>
+      <title>Five Strengths</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Five Strengths"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260917_Five_Strengths.mp3"
+                 type="audio/mpeg"
+                 length="6678528"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260917-five-strengths.html</link>
+      <pubDate>Fri, 18 Sep 2026 02:48:09 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260917_Five_Strengths.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>908</itunes:duration>
+    </item>
+    <item>
+      <title>Meaning &amp; Purpose</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Meaning &amp; Purpose"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260916_Meaning_&amp;_Purpose.mp3"
+                 type="audio/mpeg"
+                 length="4757504"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260916-meaning-purpose.html</link>
+      <pubDate>Thu, 17 Sep 2026 02:30:59 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260916_Meaning_&amp;_Purpose.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>602</itunes:duration>
+    </item>
+    <item>
+      <title>Perfect Mindstorms</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Perfect Mindstorms"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260915_Perfect_Mindstorms.mp3"
+                 type="audio/mpeg"
+                 length="4302848"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260915-perfect-mindstorms.html</link>
+      <pubDate>Wed, 16 Sep 2026 03:17:05 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260915_Perfect_Mindstorms.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>562</itunes:duration>
+    </item>
+    <item>
+      <title>Calm &amp; Alert</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Calm &amp; Alert"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260913_Calm_&amp;_Alert.mp3"
+                 type="audio/mpeg"
+                 length="5664768"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260913-calm-alert.html</link>
+      <pubDate>Wed, 16 Sep 2026 03:17:04 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260913_Calm_&amp;_Alert.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>707</itunes:duration>
+    </item>
+    <item>
+      <title>True to Yourself</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "True to Yourself"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260912_True_to_Yourself.mp3"
+                 type="audio/mpeg"
+                 length="4030464"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260912-true-to-yourself.html</link>
+      <pubDate>Sun, 13 Sep 2026 02:41:34 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260912_True_to_Yourself.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>517</itunes:duration>
+    </item>
+    <item>
+      <title>Abandoning Old Habits</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Abandoning Old Habits"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260911_Abandoning_Old_Habits.mp3"
+                 type="audio/mpeg"
+                 length="5548032"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260911-abandoning-old-habits.html</link>
+      <pubDate>Sat, 12 Sep 2026 02:44:58 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260911_Abandoning_Old_Habits.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>748</itunes:duration>
+    </item>
+    <item>
+      <title>Potentials</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Potentials"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260910_Potentials.mp3"
+                 type="audio/mpeg"
+                 length="5558272"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260910-potentials.html</link>
+      <pubDate>Fri, 11 Sep 2026 01:46:50 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260910_Potentials.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>723</itunes:duration>
+    </item>
+    <item>
+      <title>Evaluating the Breath</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Evaluating the Breath"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260909_Evaluating_the_Breath.mp3"
+                 type="audio/mpeg"
+                 length="5380096"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260909-evaluating-the-breath.html</link>
+      <pubDate>Thu, 10 Sep 2026 02:49:46 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260909_Evaluating_the_Breath.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>695</itunes:duration>
+    </item>
+    <item>
+      <title>In Training</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "In Training"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260907_In_Training.mp3"
+                 type="audio/mpeg"
+                 length="4984832"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260907-in-training.html</link>
+      <pubDate>Tue, 08 Sep 2026 02:33:22 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260907_In_Training.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>664</itunes:duration>
+    </item>
+    <item>
+      <title>Rapture &amp; Refreshment</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Rapture &amp; Refreshment"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260906_Rapture_&amp;_Refreshment.mp3"
+                 type="audio/mpeg"
+                 length="4853760"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260906-rapture-refreshment.html</link>
+      <pubDate>Tue, 08 Sep 2026 02:33:21 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260906_Rapture_&amp;_Refreshment.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>594</itunes:duration>
+    </item>
+    <item>
+      <title>Equanimity when You Care</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Equanimity when You Care"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260905_Equanimity_when_You_Care.mp3"
+                 type="audio/mpeg"
+                 length="4179968"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260905-equanimity-when-you-care.html</link>
+      <pubDate>Sun, 06 Sep 2026 02:44:59 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260905_Equanimity_when_You_Care.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>547</itunes:duration>
+    </item>
+    <item>
+      <title>The First &amp; Second Tetrads</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "The First &amp; Second Tetrads"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260903_The_First_&amp;_Second_Tetrads.mp3"
+                 type="audio/mpeg"
+                 length="5613568"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260903-the-first-second-tetrads.html</link>
+      <pubDate>Fri, 04 Sep 2026 02:57:06 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260903_The_First_&amp;_Second_Tetrads.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>722</itunes:duration>
+    </item>
+    <item>
+      <title>The Third Tetrad</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "The Third Tetrad"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260902_The_Third_Tetrad.mp3"
+                 type="audio/mpeg"
+                 length="5517312"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260902-the-third-tetrad.html</link>
+      <pubDate>Thu, 03 Sep 2026 02:52:03 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260902_The_Third_Tetrad.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>724</itunes:duration>
+    </item>
+    <item>
+      <title>The Uncertain Present</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "The Uncertain Present"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260901_The_Uncertain_Present.mp3"
+                 type="audio/mpeg"
+                 length="4857856"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260901-the-uncertain-present.html</link>
+      <pubDate>Wed, 02 Sep 2026 01:19:02 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260901_The_Uncertain_Present.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>638</itunes:duration>
+    </item>
+    <item>
+      <title>Don&#39;t Sell the Buddha Short</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Don&#39;t Sell the Buddha Short"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260831_Don&#39;t_Sell_the_Buddha_Short.mp3"
+                 type="audio/mpeg"
+                 length="5978112"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260831-don-t-sell-the-buddha-short.html</link>
+      <pubDate>Tue, 01 Sep 2026 01:59:44 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260831_Don&#39;t_Sell_the_Buddha_Short.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>800</itunes:duration>
+    </item>
+    <item>
+      <title>Joy in the Process</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Joy in the Process"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260830_Joy_in_the_Process.mp3"
+                 type="audio/mpeg"
+                 length="6350848"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260830-joy-in-the-process.html</link>
+      <pubDate>Tue, 01 Sep 2026 01:59:44 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260830_Joy_in_the_Process.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>769</itunes:duration>
+    </item>
+    <item>
+      <title>Customs of the Noble Ones</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Customs of the Noble Ones"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260829_Customs_of_the_Noble_Ones.mp3"
+                 type="audio/mpeg"
+                 length="5810176"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260829-customs-of-the-noble-ones.html</link>
+      <pubDate>Sun, 30 Aug 2026 02:30:43 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260829_Customs_of_the_Noble_Ones.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>765</itunes:duration>
+    </item>
+    <item>
+      <title>Cooking the Present Moment</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Cooking the Present Moment"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260828_Cooking_the_Present_Moment.mp3"
+                 type="audio/mpeg"
+                 length="5818368"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260828-cooking-the-present-moment.html</link>
+      <pubDate>Sat, 29 Aug 2026 02:55:37 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260828_Cooking_the_Present_Moment.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>783</itunes:duration>
+    </item>
+    <item>
+      <title>The Fourth Tetrad</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "The Fourth Tetrad"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260826_The_Fourth_Tetrad.mp3"
+                 type="audio/mpeg"
+                 length="4032512"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260826-the-fourth-tetrad.html</link>
+      <pubDate>Thu, 27 Aug 2026 02:29:41 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260826_The_Fourth_Tetrad.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>523</itunes:duration>
+    </item>
+    <item>
+      <title>Body as Sensuality, Body as Form</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Body as Sensuality, Body as Form"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260825_Body_as_Sensuality,_Body_as_Form.mp3"
+                 type="audio/mpeg"
+                 length="4749312"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260825-body-as-sensuality-body-as-form.html</link>
+      <pubDate>Wed, 26 Aug 2026 02:58:32 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260825_Body_as_Sensuality,_Body_as_Form.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>614</itunes:duration>
+    </item>
+    <item>
+      <title>Analysis of Qualities</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Analysis of Qualities"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260823_Analysis_of_Qualities.mp3"
+                 type="audio/mpeg"
+                 length="4622336"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260823-analysis-of-qualities.html</link>
+      <pubDate>Wed, 26 Aug 2026 02:58:32 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260823_Analysis_of_Qualities.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>577</itunes:duration>
+    </item>
+    <item>
+      <title>Determined Goodwill</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Determined Goodwill"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260824_Determined_Goodwill.mp3"
+                 type="audio/mpeg"
+                 length="5685248"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260824-determined-goodwill.html</link>
+      <pubDate>Tue, 25 Aug 2026 02:28:14 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260824_Determined_Goodwill.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>746</itunes:duration>
+    </item>
+    <item>
+      <title>The Desire to Do Well</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "The Desire to Do Well"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260822_The_Desire_to_Do_Well.mp3"
+                 type="audio/mpeg"
+                 length="3993600"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260822-the-desire-to-do-well.html</link>
+      <pubDate>Sun, 23 Aug 2026 03:07:19 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260822_The_Desire_to_Do_Well.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>519</itunes:duration>
+    </item>
+    <item>
+      <title>Learn from Your Mistakes</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Learn from Your Mistakes"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260821_Learn_from_Your_Mistakes.mp3"
+                 type="audio/mpeg"
+                 length="5054464"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260821-learn-from-your-mistakes.html</link>
+      <pubDate>Sat, 22 Aug 2026 02:29:55 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260821_Learn_from_Your_Mistakes.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>674</itunes:duration>
+    </item>
+    <item>
+      <title>Reactive Patterns</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Reactive Patterns"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260819_Reactive_Patterns.mp3"
+                 type="audio/mpeg"
+                 length="5474304"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260819-reactive-patterns.html</link>
+      <pubDate>Thu, 20 Aug 2026 02:54:14 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260819_Reactive_Patterns.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>725</itunes:duration>
+    </item>
+    <item>
+      <title>Lift Up Your Heart</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Lift Up Your Heart"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260818_Lift_Up_Your_Heart.mp3"
+                 type="audio/mpeg"
+                 length="5515264"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260818-lift-up-your-heart.html</link>
+      <pubDate>Wed, 19 Aug 2026 02:59:37 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260818_Lift_Up_Your_Heart.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>755</itunes:duration>
+    </item>
+    <item>
+      <title>Your Safe Spot</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Your Safe Spot"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260817_Your_Safe_Spot.mp3"
+                 type="audio/mpeg"
+                 length="4042752"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260817-your-safe-spot.html</link>
+      <pubDate>Tue, 18 Aug 2026 02:51:12 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260817_Your_Safe_Spot.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>540</itunes:duration>
+    </item>
+    <item>
+      <title>When Your Head Is on Fire</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "When Your Head Is on Fire"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260816_When_Your_Head_Is_on_Fire.mp3"
+                 type="audio/mpeg"
+                 length="4292608"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260816-when-your-head-is-on-fire.html</link>
+      <pubDate>Mon, 17 Aug 2026 03:00:44 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260816_When_Your_Head_Is_on_Fire.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>552</itunes:duration>
+    </item>
+    <item>
+      <title>Discernment Requires Concentration</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Discernment Requires Concentration"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260815_Discernment_Requires_Concentration.mp3"
+                 type="audio/mpeg"
+                 length="5146624"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260815-discernment-requires-concentration.html</link>
+      <pubDate>Sun, 16 Aug 2026 02:48:17 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260815_Discernment_Requires_Concentration.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>678</itunes:duration>
+    </item>
+    <item>
+      <title>Five Reflections</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Five Reflections"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260813_Five_Reflections.mp3"
+                 type="audio/mpeg"
+                 length="5019648"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260813-five-reflections.html</link>
+      <pubDate>Fri, 14 Aug 2026 03:01:53 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260813_Five_Reflections.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>665</itunes:duration>
+    </item>
+    <item>
+      <title>Get Outside Yourself</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Get Outside Yourself"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260812_Get_Outside_Yourself.mp3"
+                 type="audio/mpeg"
+                 length="5576704"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260812-get-outside-yourself.html</link>
+      <pubDate>Thu, 13 Aug 2026 03:03:18 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260812_Get_Outside_Yourself.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>726</itunes:duration>
+    </item>
+    <item>
+      <title>Appropriate Attention</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Appropriate Attention"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260809_Appropriate_Attention.mp3"
+                 type="audio/mpeg"
+                 length="6684672"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260809-appropriate-attention.html</link>
+      <pubDate>Thu, 13 Aug 2026 03:03:18 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260809_Appropriate_Attention.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>815</itunes:duration>
+    </item>
+    <item>
+      <title>Mindwashing</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Mindwashing"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260807_Mindwashing.mp3"
+                 type="audio/mpeg"
+                 length="4386816"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260807-mindwashing.html</link>
+      <pubDate>Mon, 10 Aug 2026 20:51:25 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260807_Mindwashing.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>586</itunes:duration>
+    </item>
+    <item>
+      <title>Conviction &amp; Confidence</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Conviction &amp; Confidence"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260808_Conviction_&amp;_Confidence.mp3"
+                 type="audio/mpeg"
+                 length="3659776"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260808-conviction-confidence.html</link>
+      <pubDate>Sun, 09 Aug 2026 03:02:04 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260808_Conviction_&amp;_Confidence.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>480</itunes:duration>
+    </item>
+    <item>
+      <title>Coming Home</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Coming Home"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260807_Coming_Home.mp3"
+                 type="audio/mpeg"
+                 length="4386816"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260807-coming-home.html</link>
+      <pubDate>Sat, 08 Aug 2026 01:42:59 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260807_Coming_Home.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>586</itunes:duration>
+      <itunes:block>yes</itunes:block>
+    </item>
+    <item>
+      <title>Admen Inside</title>
+      <description>A talk by Thanissaro Bhikkhu entitled "Admen Inside"</description>
+      <enclosure url="https://www.dhammatalks.org/Archive/y2026/260806_Admen_Inside.mp3"
+                 type="audio/mpeg"
+                 length="4788224"/>
+      <link>https://www.dhammatalks.org/audio/evening/2026/260806-admen-inside.html</link>
+      <pubDate>Fri, 07 Aug 2026 02:58:25 -0000</pubDate>
+      <guid isPermaLink="false">https://www.dhammatalks.org/Archive/y2026/260806_Admen_Inside.mp3</guid>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:duration>620</itunes:duration>
+    </item>
+  </channel>
+</rss>

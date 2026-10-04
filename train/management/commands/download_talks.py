@@ -12,8 +12,8 @@ class Command(BaseCommand):
         # Named (optional) arguments
         parser.add_argument(
             "--destination",
-            help="Specify a destination path for the downloaded documents. Default is /tmp/ajahngpt",
-            default="/tmp/ajahngpt/"
+            help="Specify a destination path for the downloaded documents. Default is /tmp/ajaanai",
+            default="/tmp/ajaanai/"
         )
 
     def handle(self, *args, **options):

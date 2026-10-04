@@ -18,8 +18,8 @@ class Command(BaseCommand):
         # Named (optional) arguments
         parser.add_argument(
             "--destination",
-            help="Specify a destination path for the merged documents. Default is /tmp/ajahngpt/merged",
-            default="/tmp/ajahngpt/merged"
+            help="Specify a destination path for the merged documents. Default is /tmp/ajaanai/merged",
+            default="/tmp/ajaanai/merged"
         )
 
         parser.add_argument(

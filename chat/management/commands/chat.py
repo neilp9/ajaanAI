@@ -1,10 +1,10 @@
 from django.core.management.base import BaseCommand, CommandError
 from chat.utils import OpenAIUtils as chat_utils
 from train.utils import OpenAIUtils as train_utils
-from train.constants import AJAHN_GEOFF
+from train.constants import AJAAN_GEOFF
 
 class Command(BaseCommand):
-    help = 'Initiates a session with ajahn GPT assistant on openai'
+    help = 'Initiates a session with ajaanAI assistant on openai'
 
     class COLORS: # You may need to change color settings
         RED = '\033[31m'
@@ -20,13 +20,13 @@ class Command(BaseCommand):
         # Named (optional) arguments
         parser.add_argument(
             "--assistant_name",
-            help="Specify Ajahn to interact with, by name. Default is Ajahn Geoff (Thanissaro Bikkhu)",
-            default=AJAHN_GEOFF.NAME
+            help="Specify Ajaan to interact with, by name. Default is Ajaan Geoff (Thanissaro Bikkhu)",
+            default=AJAAN_GEOFF.NAME
         )
 
         parser.add_argument(
             "--assistant_id",
-            help="Specify Ajahn to interact with, by id.",
+            help="Specify Ajaan to interact with, by id.",
         )
 
 

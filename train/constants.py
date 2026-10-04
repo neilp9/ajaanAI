@@ -17,8 +17,8 @@ class OpenAIConstants:
     # currently required for assistants support
     DEFAULT_MODEL = 'gpt-4-1106-preview'
 
-class AJAHN_GEOFF:
-    NAME = "Thanissaro Bhikkhu (Ajahn Geoff)"
+class AJAAN_GEOFF:
+    NAME = "Thanissaro Bhikkhu (Ajaan Geoff)"
     # attempt to fix my_files issue refs: 
     # https://community.openai.com/t/assistant-not-able-to-access-uploaded-file/524495/6
     # https://community.openai.com/t/assistant-sometimes-reply-with-files-youve-uploaded-are-not-accessible-with-the-myfiles-browser-tool/503951/8

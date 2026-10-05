@@ -15,7 +15,10 @@ TranscribeProvider = Literal["elevenlabs", "openai", "deepgram", "assemblyai", "
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # env_ignore_empty: a blank `KEY=` in .env (or the Modal secret) means unset, not "" — an empty
+    # HF_TOKEN would otherwise be sent as a blank credential and break public model downloads.
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore",
+                                      env_ignore_empty=True)
 
     # --- storage -------------------------------------------------------------
     data_dir: Path = Path("data")  # set to /data on Modal (the mounted volume)

@@ -5,7 +5,8 @@ from ajaanai.catalog import Doc
 from ajaanai.dataset.chunk import passages_for
 from ajaanai.dataset.synth import SynthStore, render, synth_batch, synth_sync
 
-OUT = {"usable": True, "topics": ["breath"], "items": [{"question": "How do I begin?", "short_answer_sentences": [0, 1]}]}
+OUT = {"usable": True, "topics": ["breath"], "conversations": [{"exchanges": [
+    {"caller": "How do I begin?", "sentences": [0, 1], "longer": False, "ask_back": ""}]}]}
 
 
 def message(payload, stop="end_turn"):

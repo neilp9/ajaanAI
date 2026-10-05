@@ -1,4 +1,8 @@
-"""Split documents into passages on paragraph boundaries, and passages into sentences."""
+"""Split documents into passages on paragraph boundaries, and passages into sentences.
+
+Retreat Q&A sections ("Q: …" / "A: …") are split into one passage per real exchange instead,
+with the question kept alongside his answer.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +24,7 @@ class Passage:
     source: str
     kind: str
     text: str
+    question: str | None = None  # set for a real Q&A exchange; `text` is then his answer
 
     @property
     def words(self) -> int:
@@ -78,6 +83,32 @@ def passages_for(doc: Doc, min_words: int = 300, max_words: int = 700) -> list[P
                 source=doc.source, kind=doc.kind, text=t)
         for i, t in enumerate(chunk_text(doc.text or "", min_words, max_words))
     ]
+
+
+_QA_MARK = re.compile(r"(?m)^(Q|A):\s*")
+
+
+def is_qa(doc: Doc) -> bool:
+    return len(re.findall(r"(?m)^Q:\s", doc.text or "")) >= 2
+
+
+def _strip_headers(answer: str) -> str:
+    """Drop session headers ("February 14, 2026, afternoon", "Q&A") that trail an answer."""
+    paras = [p.strip() for p in answer.split("\n\n") if p.strip()]
+    while paras and (len(paras[-1].split()) < 6 and not paras[-1].endswith((".", "?", "!", "”"))):
+        paras.pop()
+    return "\n\n".join(paras)
+
+
+def qa_passages(doc: Doc) -> list[Passage]:
+    parts = _QA_MARK.split(doc.text or "")
+    seq = [(parts[i], parts[i + 1].strip()) for i in range(1, len(parts) - 1, 2)]
+    out = []
+    for (k1, q), (k2, a) in zip(seq, seq[1:]):
+        if k1 == "Q" and k2 == "A" and (a := _strip_headers(a)):
+            out.append(Passage(id=f"{doc.id}#qa{len(out)}", doc_id=doc.id, title=doc.title, author=doc.author,
+                               source=doc.source, kind="qa", text=a, question=" ".join(q.split())))
+    return out
 
 
 def stable_bucket(key: str, buckets: int = 10_000) -> int:

@@ -47,9 +47,12 @@ class Settings(BaseSettings):
     endpoint_bearer_secret: str | None = None
 
     # --- dataset synthesis -----------------------------------------------------
-    synth_model: str = "claude-haiku-4-5"  # bulk question writing (runs via Batches API at 50% cost)
+    synth_model: str = "claude-haiku-4-5"  # writes the training conversations (Batches API at 50% cost)
     judge_model: str = "claude-opus-5-5"  # eval judge
     eval_fraction: float = 0.02
+    # Keep the short questions back to the caller that Claude adds to some of his turns (the only
+    # assistant words that aren't his). False rebuilds the dataset without them; no re-synthesis.
+    dataset_ask_back: bool = True
 
     # --- model (swappable; see models.py) --------------------------------------
     model_profile: str = "qwen3.5-27b"  # key in models.PROFILES, or "generic"

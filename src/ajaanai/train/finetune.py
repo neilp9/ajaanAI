@@ -1,9 +1,10 @@
 """LoRA fine-tune of an open-weights model (runs inside a Modal GPU container).
 
 Model-agnostic: the base weights, LoRA target modules and GPU come from the active
-ModelProfile. Data is the provider-neutral chat JSONL from `ajaanai build-dataset`, converted to
-TRL's prompt/completion form so loss is only computed on the teacher's words, whatever the
-model's chat template.
+ModelProfile. Data is the provider-neutral multi-turn chat JSONL from `ajaanai build-dataset`;
+each conversation is expanded into one TRL prompt/completion example per teacher turn (the call so
+far -> his next reply), so loss is only computed on the teacher's words, whatever the model's chat
+template.
 
 Output: /data/models/<run_id>/{adapter,merged} + run.json. Serving uses a run only after
 `ajaanai promote <run_id>` (normally after `ajaanai eval`).
@@ -18,9 +19,15 @@ from pathlib import Path
 from ..models import ModelProfile
 
 
-def to_prompt_completion(row: dict) -> dict:
-    msgs = row["messages"]
-    return {"prompt": msgs[:-1], "completion": msgs[-1:]}
+def to_prompt_completions(batch: dict) -> dict:
+    """Batched `datasets.map`: one example per assistant turn, with the conversation so far as prompt."""
+    out: dict[str, list] = {"prompt": [], "completion": []}
+    for msgs in batch["messages"]:
+        for i, m in enumerate(msgs):
+            if m["role"] == "assistant":
+                out["prompt"].append(msgs[:i])
+                out["completion"].append([m])
+    return out
 
 
 def run_finetune(profile: ModelProfile, train_path: Path, eval_path: Path, models_dir: Path, *,
@@ -49,7 +56,8 @@ def run_finetune(profile: ModelProfile, train_path: Path, eval_path: Path, model
     files = {"train": str(train_path)}
     if eval_path.exists() and eval_path.stat().st_size:
         files["eval"] = str(eval_path)
-    ds = load_dataset("json", data_files=files).map(to_prompt_completion, remove_columns=["messages"])
+    ds = load_dataset("json", data_files=files).map(to_prompt_completions, batched=True,
+                                                    remove_columns=["messages"])
 
     trainer = SFTTrainer(
         model=model,

@@ -35,14 +35,16 @@ def _fn(name: str):
     return modal.Function.from_name(APP_NAME, name)
 
 
-def _run_or_spawn(name: str, wait: bool, **kwargs):
+def _run_or_spawn(name: str, wait: bool, result: str = "`ajaanai status`", **kwargs):
+    """Run a Modal function: block on it with `wait`, otherwise start it detached and return None."""
     fn = _fn(name)
     if wait:
         typer.echo(f"Running {name} on Modal and waiting for it to finish (progress: uv run modal app logs "
-                   f"{APP_NAME}; result in `ajaanai status`)...")
+                   f"{APP_NAME}; result in {result})...")
         return fn.remote(**kwargs)
     call = fn.spawn(**kwargs)
-    typer.echo(f"Started {name} on Modal (call {call.object_id}). Follow it with: uv run modal app logs {APP_NAME}")
+    typer.echo(f"Started {name} on Modal (call {call.object_id}). It runs on its own; you can close this terminal.\n"
+               f"Follow it with: uv run modal app logs {APP_NAME}\nWhen it's done, see: {result}")
     return None
 
 
@@ -255,6 +257,7 @@ def build_dataset_cmd(
 def train(
     backend: Optional[str] = typer.Option(None, help="modal | openai | together (default TRAIN_BACKEND)"),
     wait: bool = typer.Option(False, help="Wait for the Modal job"),
+    max_steps: Optional[int] = typer.Option(None, help="Modal only: stop after N steps (smoke test; saves the adapter only)"),
 ):
     """Fine-tune on the dataset with the chosen backend."""
     _setup_logging()
@@ -262,7 +265,7 @@ def train(
     backend = backend or s.train_backend
     root = s.data_dir / "dataset"
     if backend == "modal":
-        out = _run_or_spawn("finetune", wait)
+        out = _run_or_spawn("finetune", wait, result="`ajaanai runs`", max_steps=max_steps)
         if out:
             typer.echo(f"Trained run {out}. Evaluate it, then: ajaanai promote {out}")
         return
@@ -281,6 +284,47 @@ def train(
     else:
         raise typer.Exit(f"Unknown backend {backend}")
     typer.echo("Done. To serve it, set in .env:\n" + "\n".join(f"{k}={v}" for k, v in result.items()))
+
+
+@app.command()
+def runs():
+    """Trained runs on the Modal volume: status, loss, base model, and which one is served."""
+    import modal
+    from modal.exception import NotFoundError
+    from modal.volume import FileEntryType
+
+    vol = modal.Volume.from_name(VOLUME)
+
+    def read(path: str) -> str | None:
+        try:
+            return b"".join(vol.read_file(path)).decode()
+        except FileNotFoundError:
+            return None
+
+    try:
+        run_ids = sorted(e.path.rsplit("/", 1)[-1] for e in vol.listdir("/models") if e.type == FileEntryType.DIRECTORY)
+    except NotFoundError:
+        run_ids = []
+    if not run_ids:
+        typer.echo("No trained runs yet. Start one with: uv run ajaanai train")
+        return
+    current = (read("/models/CURRENT") or "").strip()
+    for run_id in run_ids:
+        meta = json.loads(read(f"/models/{run_id}/run.json") or "null")
+        mark = "*" if run_id == current else " "
+        if meta is None:
+            # run.json is written last, so this run is still training (or it stopped early)
+            typer.echo(f"{mark} {run_id}  not finished: still training, or it failed (see uv run modal app logs {APP_NAME})")
+        else:
+            loss = meta.get("train_loss")
+            kind = f"smoke ({meta.get('max_steps')} steps, adapter only)" if meta.get("smoke") else "done"
+            evals = meta.get("eval_history") or []
+            eval_loss = f"  eval_loss={evals[-1]['eval_loss']:.4f}" if evals else ""
+            typer.echo(f"{mark} {run_id}  {kind}  loss={loss:.4f}{eval_loss}  epochs={meta.get('epochs')}  "
+                       f"rank={meta.get('rank')}  base={meta.get('base')}" if isinstance(loss, (int, float))
+                       else f"{mark} {run_id}  {kind}  {meta}")
+    typer.echo("\n* = served (set with `ajaanai promote <run_id>`, normally after `ajaanai eval`)" if current
+               else "\nNo run is being served yet: evaluate one, then `ajaanai promote <run_id>`.")
 
 
 @app.command()

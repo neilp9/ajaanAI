@@ -232,7 +232,7 @@ def rag_update() -> int:
 
 @app.function(image=train_image, gpu=PROFILE.train_gpu, volumes={DATA: volume}, secrets=[secret],
               timeout=24 * 3600)
-def finetune(dataset_subdir: str = "dataset") -> str:
+def finetune(dataset_subdir: str = "dataset", max_steps: int | None = None) -> str:
     from ajaanai.train.finetune import run_finetune
 
     volume.reload()
@@ -240,7 +240,8 @@ def finetune(dataset_subdir: str = "dataset") -> str:
     s = get_settings()
     root = s.data_dir / dataset_subdir
     out = run_finetune(active_profile(), root / "train.jsonl", root / "eval.jsonl", s.data_dir / "models",
-                       rank=s.lora_rank, epochs=s.train_epochs, hf_token=s.hf_token, push_repo=s.hf_output_repo)
+                       rank=s.lora_rank, epochs=s.train_epochs, max_steps=max_steps, hf_token=s.hf_token,
+                       push_repo=s.hf_output_repo)
     volume.commit()
     return out.name
 

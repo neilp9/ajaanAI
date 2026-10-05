@@ -129,3 +129,18 @@ def test_channels_split_and_prompted_per_passage():
         assert row["messages"][0]["content"].startswith(system_prompt(passage_channel(p)))
     assert stats.by_channel == {"text": channels.count("text"), "voice": channels.count("voice")}
     assert "text chat" in system_prompt("text") and "phone call" in system_prompt("voice")
+
+
+def test_finetune_renders_whole_conversations_for_profiles_with_turn_markers():
+    from ajaanai.models import PROFILES
+    from ajaanai.train.finetune import to_text
+
+    class Tok:
+        def apply_chat_template(self, msgs, tokenize):
+            assert tokenize is False
+            return "|".join(f"{m['role']}:{m['content']}" for m in msgs)
+
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "q1"}, {"role": "assistant", "content": "a1"}]
+    assert to_text({"messages": [msgs]}, Tok()) == {"text": ["system:s|user:q1|assistant:a1"]}
+    assert all(p.turn_markers for name, p in PROFILES.items() if name != "generic")
+    assert PROFILES["generic"].turn_markers is None  # falls back to one example per teacher turn

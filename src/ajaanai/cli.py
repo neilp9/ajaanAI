@@ -324,8 +324,9 @@ def eval_cmd(
 @app.command()
 def chat(
     url: Optional[str] = typer.Option(None, help="Proxy base URL (default ENDPOINT_URL)"),
+    voice: bool = typer.Option(False, help="Use the voice-call channel (phone prompt + fillers) instead of text chat"),
 ):
-    """Text conversation with the deployed endpoint, streamed (fillers shown dimmed)."""
+    """Conversation with the deployed endpoint, streamed. Text-chat channel unless --voice (fillers shown dimmed)."""
     import httpx
 
     s = get_settings()
@@ -337,6 +338,7 @@ def chat(
 
     fillers = set(s.fillers_first or FILLERS_FIRST) | set(s.fillers_repeat or FILLERS_REPEAT)
     history: list[dict] = []
+    model = "ajaan-voice" if voice else "ajaan-text"
     typer.echo("Ctrl-D to quit. (First reply may take a minute while the GPU wakes.)")
     while True:
         try:
@@ -346,7 +348,7 @@ def chat(
         history.append({"role": "user", "content": q})
         answer = []
         with httpx.stream("POST", f"{base}/v1/chat/completions", headers=headers, timeout=300,
-                          json={"model": "ajaan", "stream": True, "messages": history}) as r:
+                          json={"model": model, "stream": True, "messages": history}) as r:
             r.raise_for_status()
             for line in r.iter_lines():
                 if not line.startswith("data: ") or line == "data: [DONE]":

@@ -71,7 +71,7 @@ def build_dataset(cat: Catalog, settings: Settings, *, sample: int | None = None
     write_jsonl(root / "eval.jsonl", evals)
     write_jsonl(root / "eval_questions.jsonl", eval_qs)
     card = {"passages": len(passages), "train": stats.train, "eval": stats.eval,
-            "by_type": stats.by_type, "skipped_unusable": stats.skipped_unusable,
+            "by_type": stats.by_type, "by_channel": stats.by_channel, "skipped_unusable": stats.skipped_unusable,
             "assistant_turns": stats.assistant_turns, "ask_backs": stats.ask_backs,
             "turns_dropped": stats.turns_dropped, "synth_model": settings.synth_model,
             "licence": "Source texts © Thanissaro Bhikkhu, CC BY-NC 4.0 (dhammatalks.org). Non-commercial use only."}

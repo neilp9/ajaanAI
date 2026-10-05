@@ -1,7 +1,7 @@
 from ajaanai.catalog import Doc
 from ajaanai.dataset.build import build_examples, conversation_turns
-from ajaanai.dataset.chunk import chunk_text, is_qa, passages_for, qa_passages, split_sentences
-from ajaanai.dataset.persona import SYSTEM_PROMPT
+from ajaanai.dataset.chunk import chunk_text, is_qa, passage_channel, passages_for, qa_passages, split_sentences
+from ajaanai.dataset.persona import system_prompt
 
 
 def para(n, word="breath"):
@@ -41,7 +41,7 @@ def test_conversation_is_multi_turn_and_only_his_sentences():
     train, evals, eval_qs, stats = build_examples(ps, synth, eval_fraction=0.0)
     assert len(train) == 1 and not evals
     msgs = train[0]["messages"]
-    assert msgs[0]["role"] == "system" and msgs[0]["content"].startswith(SYSTEM_PROMPT)
+    assert msgs[0]["role"] == "system" and msgs[0]["content"].startswith(system_prompt(passage_channel(ps[0])))
     assert [m["role"] for m in msgs[1:]] == ["user", "assistant"] * 3
     assert msgs[2]["content"] == "Sentence 0-0 here. Sentence 0-1 here."
     assert msgs[4]["content"] == "Sentence 0-2 here. What do you notice?"
@@ -64,7 +64,8 @@ def test_first_reply_must_stand_alone_but_later_ones_may_lean_back():
               text="So that's why it matters. The breath is home. Because it's always here. “Evil is done by oneself.”")
     p = passages_for(doc)[0]
     assert conversation_turns(p, {"exchanges": [ex("Q", [0])]})[0] == []
-    assert conversation_turns(p, {"exchanges": [ex("Q", [3])]})[0] == []
+    assert conversation_turns(p, {"exchanges": [ex("Q", [2])]})[0] == []
+    assert conversation_turns(p, {"exchanges": [ex("Q", [3])]})[0] == []  # a quotation, not his words
     turns, _, _ = conversation_turns(p, {"exchanges": [ex("Q", [1]), ex("Why?", [2])]})
     assert turns[-1]["content"] == "Because it's always here."
 
@@ -113,3 +114,18 @@ def test_finetune_expands_one_example_per_teacher_turn():
     out = to_prompt_completions({"messages": [msgs]})
     assert out["completion"] == [[msgs[2]], [msgs[4]]]
     assert out["prompt"] == [msgs[:2], msgs[:4]]
+
+
+def test_channels_split_and_prompted_per_passage():
+    doc = Doc(id="d4", source="evening", kind="talk", title="T", page_url="/x",
+              text="\n\n".join(" ".join(f"Sentence {p}-{i} here." for i in range(60)) for p in range(200)))
+    ps = passages_for(doc)
+    channels = [passage_channel(p) for p in ps]
+    assert channels == [passage_channel(p) for p in ps]  # stable
+    assert 0.2 < channels.count("text") / len(ps) < 0.6
+    synth = {p.id: {"usable": True, "topics": [], "conversations": [{"exchanges": [ex(f"Q {p.id}", [0])]}]} for p in ps}
+    train, _, _, stats = build_examples(ps, synth, 0.0)
+    for p, row in zip(ps, train):
+        assert row["messages"][0]["content"].startswith(system_prompt(passage_channel(p)))
+    assert stats.by_channel == {"text": channels.count("text"), "voice": channels.count("voice")}
+    assert "text chat" in system_prompt("text") and "phone call" in system_prompt("voice")

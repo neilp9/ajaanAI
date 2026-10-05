@@ -113,3 +113,13 @@ def qa_passages(doc: Doc) -> list[Passage]:
 
 def stable_bucket(key: str, buckets: int = 10_000) -> int:
     return int(hashlib.sha1(key.encode()).hexdigest()[:8], 16) % buckets
+
+
+TEXT_SHARE = 0.4
+
+
+def passage_channel(p: Passage) -> str:
+    """Which channel ("voice" | "text") this passage's conversations are written for. Fixed per
+    passage: synthesis styles the caller's lines for it and the build uses the matching prompt,
+    so changing TEXT_SHARE means re-synthesizing."""
+    return "text" if stable_bucket("channel:" + p.id) < TEXT_SHARE * 10_000 else "voice"

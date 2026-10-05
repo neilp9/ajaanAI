@@ -1,6 +1,7 @@
 """Assemble provider-neutral multi-turn chat JSONL ({"messages": [...]}) from synthesized conversations.
 
-Each example is one phone conversation: system prompt, then alternating caller / teacher turns.
+Each example is one conversation: the system prompt for its channel (voice call or text chat,
+see chunk.passage_channel), then alternating caller / teacher turns.
 Every teacher turn is his own sentences, kept short (1-3 sentences) unless the caller asked for
 more; the one exception is an optional short question back to the caller (see synth.py), which
 DATASET_ASK_BACK can leave out.
@@ -22,8 +23,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .chunk import Passage, split_sentences, stable_bucket
-from .persona import RAG_PREAMBLE, SYSTEM_PROMPT
+from .chunk import Passage, passage_channel, split_sentences, stable_bucket
+from .persona import RAG_PREAMBLE, system_prompt
 
 MAX_TURN_SENTENCES, MAX_TURN_WORDS = 4, 70  # an ordinary reply
 MAX_LONG_SENTENCES, MAX_LONG_WORDS = 7, 140  # when the caller asked him to say more
@@ -37,12 +38,12 @@ _DANGLING_START = re.compile(
     r"This is why|That[’']s why|This is how|That[’']s how|At the same time|In particular|"
     r"Other times|All these|All of these|All this|All of this|Of course|Again|As a result)\b)")
 
-
 @dataclass
 class BuildStats:
     train: int = 0
     eval: int = 0
     by_type: dict[str, int] = field(default_factory=dict)
+    by_channel: dict[str, int] = field(default_factory=dict)
     skipped_unusable: int = 0
     assistant_turns: int = 0
     ask_backs: int = 0
@@ -55,6 +56,8 @@ def _reply(sentences: list[str], ids: list[int], *, longer: bool, first: bool, u
     max_s, max_w = (MAX_LONG_SENTENCES, MAX_LONG_WORDS) if longer else (MAX_TURN_SENTENCES, MAX_TURN_WORDS)
     if not 1 <= len(picked) <= max_s or used.intersection(picked):
         return None
+    # Dropped, not patched: borrowing the sentence before a leaning opener tends to bring in a
+    # dangling pronoun or the tail of a quotation instead.
     if first and _DANGLING_START.match(sentences[picked[0]]):
         return None
     text = " ".join(sentences[i] for i in picked)
@@ -107,6 +110,7 @@ def build_examples(passages: list[Passage], synth: dict[str, dict], eval_fractio
             stats.skipped_unusable += 1
             continue
         is_eval = stable_bucket(p.doc_id) < eval_fraction * 10_000
+        channel = passage_channel(p)
         for convo in out.get("conversations", []):
             turns, n_ask, dropped = conversation_turns(p, convo, ask_back=ask_back)
             stats.turns_dropped += dropped
@@ -116,12 +120,13 @@ def build_examples(passages: list[Passage], synth: dict[str, dict], eval_fractio
             seen_q.add(q.lower())
             if is_eval:
                 eval_qs.append({"question": q, "reference": p.text, "doc_id": p.doc_id,
-                                "passage_id": p.id, "title": p.title})
+                                "passage_id": p.id, "title": p.title, "channel": channel})
             grounded = stable_bucket(p.id + q) % 10 < 3
-            system = SYSTEM_PROMPT + ("\n\n" + RAG_PREAMBLE + p.text if grounded else "")
+            system = system_prompt(channel) + ("\n\n" + RAG_PREAMBLE + p.text if grounded else "")
             kind = ("qa" if p.kind == "qa" else "conversation") + ("_grounded" if grounded else "")
             (evals if is_eval else train).append({"messages": [{"role": "system", "content": system}, *turns]})
             stats.by_type[kind] = stats.by_type.get(kind, 0) + 1
+            stats.by_channel[channel] = stats.by_channel.get(channel, 0) + 1
             stats.assistant_turns += len(turns) // 2
             stats.ask_backs += n_ask
 

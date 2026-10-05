@@ -21,7 +21,7 @@ def passages():
 
 def test_render_numbers_sentences():
     out = render(passages()[0])
-    assert out.startswith("Title: T") and "[0] Sentence 0-0 goes here." in out
+    assert out.startswith("Channel: ") and "Title: T" in out and "[0] Sentence 0-0 goes here." in out
 
 
 class FakeMessages:

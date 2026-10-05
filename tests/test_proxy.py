@@ -6,7 +6,8 @@ import httpx
 import pytest
 
 from ajaanai.models import get_profile
-from ajaanai.serve.proxy import (Delta, ProxyConfig, ThinkStripper, build_upstream_body, create_app,
+from ajaanai.dataset.persona import system_prompt
+from ajaanai.serve.proxy import (Delta, ProxyConfig, ThinkStripper, build_upstream_body, channel_for, create_app,
                                  should_think, spoken_stream)
 
 QWEN = get_profile("qwen3.5-27b")
@@ -162,6 +163,30 @@ async def test_app_streams_openai_compatible_sse(respx_mock):
     sent = json.loads(respx_mock.calls.last.request.content)
     assert "REFERENCE" in sent["messages"][0]["content"]
     assert sent["chat_template_kwargs"] == {"enable_thinking": True}
+
+
+def test_channel_from_model_name():
+    assert channel_for("ajaan-text") == "text" and channel_for("AJAAN-TEXT") == "text"
+    assert channel_for("ajaan") == channel_for("ajaan-voice") == channel_for(None) == "voice"
+    body = {"messages": [{"role": "user", "content": "q"}]}
+    assert build_upstream_body(cfg(), body, False, None, "text")["messages"][0]["content"] == system_prompt("text")
+    assert build_upstream_body(cfg(), body, False, None)["messages"][0]["content"] == system_prompt("voice")
+
+
+async def test_text_channel_gets_no_fillers(respx_mock):
+    respx_mock.post("http://up/v1/chat/completions").mock(return_value=httpx.Response(
+        200, text=upstream_sse([{"reasoning_content": "x"}, {"content": "Be patient."}]),
+        headers={"content-type": "text/event-stream"}))
+    app = create_app(cfg(reasoning_mode="on"))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy") as client:
+        r = await client.post("/v1/chat/completions", json={
+            "model": "ajaan-text", "stream": True, "messages": [{"role": "user", "content": "How do I meditate?"}]})
+        models = (await client.get("/v1/models")).json()
+    chunks = [json.loads(l[6:]) for l in r.text.split("\n\n") if l.startswith("data: ") and l != "data: [DONE]"]
+    assert "".join(c["choices"][0]["delta"].get("content", "") for c in chunks) == "Be patient."
+    sent = json.loads(respx_mock.calls.last.request.content)
+    assert sent["model"] == "m" and sent["messages"][0]["content"].startswith(system_prompt("text"))
+    assert {"ajaan-voice", "ajaan-text"} <= {m["id"] for m in models["data"]}
 
 
 def test_vllm_args_snapshot_flags():

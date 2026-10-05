@@ -1,10 +1,12 @@
 """OpenAI-compatible proxy that sits in front of *any* chat model.
 
-ElevenLabs (or the `ajaanai chat` CLI) calls POST /v1/chat/completions here. For each turn it:
+ElevenLabs (voice), a text chat client, or the `ajaanai chat` CLI calls POST /v1/chat/completions
+here. The requested model name picks the channel: `ajaan-text` (any name ending in "-text") is text
+chat; anything else (`ajaan`, `ajaan-voice`) is a voice call. For each turn it:
   1. decides whether the model should think (REASONING_MODE off | on | auto);
-  2. retrieves reference passages (RAG) and builds the system prompt;
+  2. retrieves reference passages (RAG) and builds the system prompt for the channel;
   3. streams the upstream model, stripping reasoning (reasoning_content or <think> tags);
-  4. while the caller would otherwise hear silence, streams short filler phrases.
+  4. on voice only, while the caller would otherwise hear silence, streams short filler phrases.
 
 The upstream is any OpenAI-style /chat/completions endpoint: the vLLM server in the same
 Modal container, an OpenAI fine-tune, Together, a local llama.cpp, etc.
@@ -26,7 +28,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from ..dataset.persona import FILLERS_FIRST, FILLERS_REPEAT, RAG_PREAMBLE, SYSTEM_PROMPT
+from ..dataset.persona import FILLERS_FIRST, FILLERS_REPEAT, RAG_PREAMBLE, Channel, system_prompt
 from ..models import ModelProfile
 
 log = logging.getLogger(__name__)
@@ -162,14 +164,22 @@ def last_user_text(messages: list[dict]) -> str:
     return ""
 
 
-def build_upstream_body(cfg: ProxyConfig, body: dict, think: bool, references: str | None) -> dict:
+CHANNEL_MODELS = ("ajaan-voice", "ajaan-text")
+
+
+def channel_for(model: str | None) -> Channel:
+    return "text" if (model or "").lower().endswith("-text") else "voice"
+
+
+def build_upstream_body(cfg: ProxyConfig, body: dict, think: bool, references: str | None,
+                        channel: Channel = "voice") -> dict:
     incoming = body.get("messages", [])
     extra_system = [m["content"] for m in incoming if m.get("role") == "system" and isinstance(m.get("content"), str)]
-    system = SYSTEM_PROMPT
+    system = system_prompt(channel)
     if references:
         system += "\n\n" + RAG_PREAMBLE + references
     if extra_system:  # e.g. ElevenLabs agent prompt / tool instructions
-        system += "\n\nAdditional instructions from the voice platform:\n" + "\n".join(extra_system)
+        system += "\n\nAdditional instructions from the client platform:\n" + "\n".join(extra_system)
     messages = [{"role": "system", "content": system}] + [m for m in incoming if m.get("role") != "system"]
     out = {
         "model": cfg.upstream_model,
@@ -338,7 +348,8 @@ def create_app(cfg: ProxyConfig, retrieve: Callable[[str], str | None] | None = 
 
     @app.get("/v1/models")
     async def models():
-        return {"object": "list", "data": [{"id": cfg.upstream_model, "object": "model"}]}
+        ids = dict.fromkeys([cfg.upstream_model, *CHANNEL_MODELS])
+        return {"object": "list", "data": [{"id": i, "object": "model"} for i in ids]}
 
     # ElevenLabs may treat the configured URL as a server root or as an OpenAI base_url;
     # answer on every path either interpretation produces.
@@ -353,9 +364,13 @@ def create_app(cfg: ProxyConfig, retrieve: Callable[[str], str | None] | None = 
         if cfg.profile.thinking == "always":
             think = True
         references = await asyncio.to_thread(retrieve, user_text) if (retrieve and user_text) else None
-        up_body = build_upstream_body(cfg, body, think, references)
+        channel = channel_for(body.get("model"))
+        up_body = build_upstream_body(cfg, body, think, references, channel)
         cid = "chatcmpl-" + uuid.uuid4().hex[:24]
-        stream = spoken_stream(upstream_stream(client, cfg, up_body), cfg, think)
+        # Fillers only cover silence on a call; non-streaming replies never get them either.
+        cfg_quiet = ProxyConfig(**{**cfg.__dict__, "filler_mode": "off"})
+        stream_cfg = cfg if channel == "voice" else cfg_quiet
+        stream = spoken_stream(upstream_stream(client, stream_cfg, up_body), stream_cfg, think)
 
         if body.get("stream", False):
             async def sse():
@@ -374,7 +389,6 @@ def create_app(cfg: ProxyConfig, retrieve: Callable[[str], str | None] | None = 
             return StreamingResponse(sse(), media_type="text/event-stream")
 
         # Non-streaming: no fillers, just the answer.
-        cfg_quiet = ProxyConfig(**{**cfg.__dict__, "filler_mode": "off"})
         text, finish = [], "stop"
         async for d in spoken_stream(upstream_stream(client, cfg_quiet, up_body), cfg_quiet, think):
             text.append(d.content)

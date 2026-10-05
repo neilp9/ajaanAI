@@ -1,6 +1,7 @@
 """Conversation synthesis with Claude.
 
-For each passage, Claude scripts a short phone conversation: the caller's lines are Claude's, and
+For each passage, Claude scripts a short conversation — a voice call or a text chat, per
+`passage_channel` — whose caller lines are Claude's (styled for that channel), and
 each of the teacher's turns is a few of *his own sentences*, picked by number. The only teacher-side
 words Claude may write are an optional short question back to the caller (`ask_back`), kept apart in
 the results so the build can include or drop them (DATASET_ASK_BACK).
@@ -23,20 +24,26 @@ import anthropic
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
 
-from .chunk import Passage, split_sentences
+from .chunk import Passage, passage_channel, split_sentences
 
 log = logging.getLogger(__name__)
 
-_INTRO = """You help build a training set for a voice assistant that talks with callers in the words \
-of Thanissaro Bhikkhu, a Theravada monk. The calls are real back-and-forth conversations, not \
-lectures: he makes one point at a time, briefly, and the caller responds."""
+_INTRO = """You help build a training set for an assistant that talks with people — over voice calls \
+and text chat — in the words of Thanissaro Bhikkhu, a Theravada monk. The conversations are real \
+back-and-forth, not lectures: he makes one point at a time, briefly, and the caller responds."""
 
 _RULES = """Each exchange is the caller's line followed by his reply.
 
-Caller lines (you write these): natural speech, usually under 25 words. Vary them: a follow-up, \
-pushback or doubt, the caller's own situation, "what do you mean by…?", a request for an example, \
-or simply taking in what he said. Not every line needs to be a question. Don't open them all the \
-same way, don't lean on the word "actually", and never mention "the passage", "the talk" or "the book".
+Caller lines (you write these): usually under 25 words. Vary them: a follow-up, pushback or doubt, \
+the caller's own situation, "what do you mean by…?", a request for an example, or simply taking in \
+what he said. Not every line needs to be a question. Don't open them all the same way, don't lean \
+on the word "actually", and never mention "the passage", "the talk" or "the book".
+Write them for the channel you're given, with a light touch (most lines should still read cleanly):
+- voice call: transcribed speech — spoken phrasing, sometimes run-on or with an "um"; now and then \
+a Pali term spelled the way speech recognition mishears it (e.g. "meta" for mettā, "jana" for jhāna).
+- text chat: typed messages — often shorter and more casual, sometimes lowercase or with a small \
+typo; Pali terms spelled however a layperson might type them.
+His replies are the same on both channels.
 
 His replies: `sentences` is the numbers of 1-3 of his sentences, normally consecutive, read in order \
 (about 60 words at most). Use each sentence at most once in a conversation, and generally move \
@@ -53,7 +60,7 @@ Never write anything else on his side."""
 
 SYSTEM = f"""{_INTRO}
 
-You will see one passage from his talks or writings, with each sentence numbered. Write 1-2 phone \
+You will see one passage from his talks or writings, with each sentence numbered. Write 1-2 \
 conversations (2 if the passage covers two distinct points), each 3-6 exchanges, that this passage \
 can carry. Callers are practitioners, beginners, or people going through something difficult.
 
@@ -65,10 +72,10 @@ else, or otherwise not a teaching that could answer a caller."""
 SYSTEM_QA = f"""{_INTRO}
 
 You will see a real question someone asked him at a retreat, and his real answer with each \
-sentence numbered. Turn it into one phone conversation of 2-5 exchanges: the first caller line is \
+sentence numbered. Turn it into one conversation of 2-5 exchanges: the first caller line is \
 the real question (copy it), and his answer is spread over the replies in order, with brief caller \
 lines in between that lead naturally to the next part. Cover the answer in order; you may leave out \
-sentences that don't fit a phone call (references to earlier sessions, retreat logistics).
+sentences that don't fit a one-to-one conversation (references to earlier sessions, retreat logistics).
 
 {_RULES}
 
@@ -112,9 +119,10 @@ SCHEMA = {
 
 def render(p: Passage) -> str:
     numbered = "\n".join(f"[{i}] {s}" for i, s in enumerate(split_sentences(p.text)))
+    channel = "Channel: " + ("text chat" if passage_channel(p) == "text" else "voice call")
     if p.question is not None:
-        return f"Question: {p.question}\n\nHis answer:\n{numbered}\n\nWrite the conversation."
-    return f"Title: {p.title}\n\n{numbered}\n\nWrite 1-2 conversations."
+        return f"{channel}\n\nQuestion: {p.question}\n\nHis answer:\n{numbered}\n\nWrite the conversation."
+    return f"{channel}\n\nTitle: {p.title}\n\n{numbered}\n\nWrite 1-2 conversations."
 
 
 def _params(model: str, p: Passage) -> dict:

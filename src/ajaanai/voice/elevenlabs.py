@@ -82,7 +82,7 @@ def agent_body(settings: Settings, llm_url: str, secret_id: str, init_webhook_ur
                 "prompt": {
                     "prompt": SYSTEM_PROMPT,
                     "llm": "custom-llm",
-                    "custom_llm": {"url": llm_url, "model_id": "ajaan", "api_key": {"secret_id": secret_id}},
+                    "custom_llm": {"url": llm_url, "model_id": "ajaan-voice", "api_key": {"secret_id": secret_id}},
                 },
                 "first_message": GREETING,
                 "language": "en",

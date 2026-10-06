@@ -346,10 +346,11 @@ def promote(run_id: str):
 @app.command("eval")
 def eval_cmd(
     arm: list[str] = typer.Option(..., help="name=https://.../v1 or name=https://.../v1|model (repeatable)"),
-    n: int = typer.Option(100, help="Questions to sample"),
+    n: int = typer.Option(50, help="Conversations to sample"),
+    turns: int = typer.Option(4, help="Replies per conversation (Claude plays the caller after the real opening)"),
     questions: Path = typer.Option(None, help="Defaults to data/dataset/eval_questions.jsonl"),
 ):
-    """Judge arms (endpoints) on held-out questions for style and fidelity."""
+    """Judge arms (endpoints) on whole held-out conversations: style, fidelity, brevity, interactivity."""
     _setup_logging()
     from .train.eval import Arm, run_eval
 
@@ -357,9 +358,15 @@ def eval_cmd(
     s.require("anthropic_api_key")
     qpath = questions or s.data_dir / "dataset" / "eval_questions.jsonl"
     arms = [Arm.parse(a, s.endpoint_bearer_secret) for a in arm]
-    summary = run_eval(qpath, arms, s.judge_model, s.anthropic_api_key, n=n, out_dir=s.data_dir / "eval")
+    out_dir = s.data_dir / "eval"
+    summary = run_eval(qpath, arms, s.judge_model, s.eval_caller_model, s.anthropic_api_key, n=n, turns=turns,
+                       out_dir=out_dir)
     for name, r in summary.items():
-        typer.echo(f"{name:20} style={r['style']} fidelity={r['fidelity']} n={r['n']} errors={r['errors']}")
+        typer.echo(f"{name:20} style={r['style']} fidelity={r['fidelity']} brevity={r['brevity']} "
+                   f"interactivity={r['interactivity']}  n={r['n']} errors={r['errors']}")
+        typer.echo(f"{'':20} replies/conv={r['replies_per_conversation']} words/reply median={r['reply_words_median']} "
+                   f"p90={r['reply_words_p90']} asks_back={r['asks_back_share']} markdown={r['markdown_share']}")
+    typer.echo(f"Transcripts and judge notes: {out_dir / 'eval_rows.jsonl'}")
 
 
 # --- talking to it -------------------------------------------------------------------------------
@@ -391,7 +398,7 @@ def chat(
             return
         history.append({"role": "user", "content": q})
         answer = []
-        with httpx.stream("POST", f"{base}/v1/chat/completions", headers=headers, timeout=300,
+        with httpx.stream("POST", f"{base}/v1/chat/completions", headers=headers, timeout=300, follow_redirects=True,
                           json={"model": model, "stream": True, "messages": history}) as r:
             r.raise_for_status()
             for line in r.iter_lines():

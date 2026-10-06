@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     # --- dataset synthesis -----------------------------------------------------
     synth_model: str = "claude-haiku-4-5"  # writes the training conversations (Batches API at 50% cost)
     judge_model: str = "claude-opus-5-5"  # eval judge
+    eval_caller_model: str = "claude-sonnet-5-5"  # plays the caller in eval conversations
     eval_fraction: float = 0.02
     # Keep the short questions back to the caller that Claude adds to some of his turns (the only
     # assistant words that aren't his). False rebuilds the dataset without them; no re-synthesis.
@@ -93,7 +94,10 @@ class Settings(BaseSettings):
     max_answer_tokens: int = 400  # phone answers should be short
 
     # --- reasoning & pauses ------------------------------------------------------
-    reasoning_mode: Literal["off", "on", "auto"] = "auto"
+    # off by default: the fine-tune is trained on his replies with no reasoning, answers are 1-3
+    # sentences, and on Qwen3.5 "auto" thought past the whole budget on ordinary practice questions
+    # (67 s, finish=length, empty reply). Turn on only for a model/budget you've checked.
+    reasoning_mode: Literal["off", "on", "auto"] = "off"
     reasoning_budget_tokens: int = 1024
     filler_mode: Literal["off", "when_thinking", "always"] = "when_thinking"
     filler_interval_s: float = 4.0

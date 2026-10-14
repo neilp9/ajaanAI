@@ -250,7 +250,11 @@ def run_batch(client: anthropic.Anthropic, items: list[tuple[str, dict]], store:
     stored = 0
     for batch_id in list(pending):
         while (b := client.messages.batches.retrieve(batch_id)).processing_status != "ended":
-            log.info("batch %s: %s (processing=%d)", batch_id, b.processing_status, b.request_counts.processing)
+            c = b.request_counts
+            finished = c.succeeded + c.errored + c.canceled + c.expired
+            total = finished + c.processing
+            log.info("batch %s: %s, %d/%d done (%.0f%%; succeeded=%d errored=%d)", batch_id, b.processing_status,
+                     finished, total, 100 * finished / max(total, 1), c.succeeded, c.errored)
             time.sleep(poll_s)
         for result in client.messages.batches.results(batch_id):
             if result.result.type != "succeeded":

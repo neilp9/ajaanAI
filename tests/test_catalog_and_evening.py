@@ -113,3 +113,18 @@ def test_source_refresh_cron():
     spec = dict(kind="book", parser="book", start_urls=["/books/"])
     srcs = {"a": SourceSpec(**spec, refresh="0 10 * * 1"), "b": SourceSpec(**spec)}
     assert due_sources(srcs, mon_10) == ["a"]
+
+
+def test_collect_reports_transcribed(tmp_path, monkeypatch):
+    """collect_job refreshes the retrieval index when this count (or new docs) is non-zero."""
+    from ajaanai import transcribe
+    from ajaanai.scrape import collections
+    from ajaanai.scrape.collections import CollectResult, SourceSpec
+
+    monkeypatch.setitem(collections.COLLECTORS, "audio_index", lambda name, *a: CollectResult(name))
+    monkeypatch.setattr(transcribe, "transcribe_pending", lambda *a, **kw: (["d1", "d2"], ["d3"]))
+    srcs = {"talks": SourceSpec(kind="audio_series", parser="audio_index", start_urls=["/audio/"], transcribe=True),
+            "quiet": SourceSpec(kind="audio_series", parser="audio_index", start_urls=["/audio/"])}
+    cat = Catalog(tmp_path / "c.sqlite")
+    res = {r.name: r for r in collections.collect(srcs, ["talks", "quiet"], cat, http=None)}
+    assert (res["talks"].transcribed, res["quiet"].transcribed) == (2, 0)

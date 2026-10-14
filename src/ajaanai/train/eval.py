@@ -21,6 +21,7 @@ import json
 import random
 import re
 import statistics
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -76,7 +77,7 @@ SCHEMA = {
     "additionalProperties": False,
 }
 
-_MARKDOWN = re.compile(r"(?m)^\s*(?:[-*•]\s|#{1,6}\s|\d+[.)]\s)|\*\*|__")
+_MARKDOWN = re.compile(r"(?m)^\s*(?:[-*•]\s|#{1,6}\s|\d+[.)]\s)|\*\*|__|(?<![*\w])\*[^*\s][^*\n]*\*(?![*\w])")
 
 
 @dataclass
@@ -215,7 +216,19 @@ def run_eval(questions_path: Path, arms: list[Arm], judge_model: str, caller_mod
 
     summary = {arm.name: summarize(rows, arm.name) for arm in arms}
     if out_dir:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "eval_rows.jsonl").write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows))
-        (out_dir / "eval_summary.json").write_text(json.dumps(summary, indent=2))
+        write_results(out_dir, arms, rows, summary)
     return summary
+
+
+def results_stem(arms: list[Arm], when: str | None = None) -> str:
+    """One file pair per run, e.g. 20261006-1142-tuned, so runs never overwrite each other."""
+    names = "-".join(re.sub(r"[^A-Za-z0-9_.]+", "_", a.name) for a in arms)
+    return f"{when or time.strftime('%Y%m%d-%H%M%S')}-{names}"
+
+
+def write_results(out_dir: Path, arms: list[Arm], rows: list[dict], summary: dict) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = results_stem(arms)
+    (out_dir / f"{stem}.rows.jsonl").write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows))
+    (out_dir / f"{stem}.summary.json").write_text(json.dumps(summary, indent=2))
+    return out_dir / f"{stem}.rows.jsonl"

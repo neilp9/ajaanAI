@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ..catalog import Catalog
 from ..config import Settings
-from .build import BuildStats, build_examples, write_jsonl
+from .build import BuildStats, build_examples, conversation_candidates, write_jsonl
 from .chunk import Passage, is_qa, passages_for, qa_passages
 
 log = logging.getLogger(__name__)
@@ -48,7 +48,8 @@ def build_dataset(cat: Catalog, settings: Settings, *, sample: int | None = None
                   use_batches: bool = True) -> BuildStats:
     import anthropic
 
-    from .synth import SynthStore, synth_batch, synth_sync
+    from .check import check_params
+    from .synth import SynthStore, _params, input_sha, run_batch, run_sync
 
     root = dataset_dir(settings)
     passages = style_passages(cat)
@@ -56,24 +57,44 @@ def build_dataset(cat: Catalog, settings: Settings, *, sample: int | None = None
     if sample:
         passages = _sample(passages, sample)
         root = root / "sample"
-    store = SynthStore(root)
+    batched = use_batches and not sample
+    run = (lambda items, store: run_batch(client, items, store)) if batched else \
+          (lambda items, store: run_sync(client, items, store))
     # Falls back to the SDK's default credentials (env / `ant auth login` profile) when unset.
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key) if settings.anthropic_api_key else anthropic.Anthropic()
-    if sample or not use_batches:
-        done = store.done_ids()
-        synth_sync(client, settings.synth_model, [p for p in passages if p.id not in done], store)
-    else:
-        synth_batch(client, settings.synth_model, passages, store)
 
-    train, evals, eval_qs, stats = build_examples(passages, store.load(), settings.eval_fraction,
-                                                  ask_back=settings.dataset_ask_back)
+    # 1. Claude scripts the conversations.
+    def expected(items):
+        return {i: input_sha(params) for i, params in items}
+
+    synth_store = SynthStore(root)
+    synth_items = [(p.id, _params(settings.synth_model, p)) for p in passages]
+    run(synth_items, synth_store)
+    synth = synth_store.load(expected(synth_items))
+    extras = dict(ask_back=settings.dataset_ask_back, acknowledge=settings.dataset_acknowledge)
+
+    # 2. A cheap model labels whether each reply answers the caller's line.
+    responsive = None
+    if settings.dataset_check:
+        candidates = conversation_candidates(passages, synth, **extras)
+        log.info("checking %d conversations for responsiveness", len(candidates))
+        check_store = SynthStore(root, prefix="check")
+        check_items = [(c.conv_id, check_params(settings.check_model, c.turns)) for c in candidates]
+        run(check_items, check_store)
+        responsive = {cid: r.get("responsive") for cid, r in check_store.load(expected(check_items)).items()}
+
+    # 3. Assemble the training files.
+    train, evals, eval_qs, stats = build_examples(passages, synth, settings.eval_fraction, responsive=responsive,
+                                                  **extras)
     write_jsonl(root / "train.jsonl", train)
     write_jsonl(root / "eval.jsonl", evals)
     write_jsonl(root / "eval_questions.jsonl", eval_qs)
     card = {"passages": len(passages), "train": stats.train, "eval": stats.eval,
             "by_type": stats.by_type, "by_channel": stats.by_channel, "skipped_unusable": stats.skipped_unusable,
             "assistant_turns": stats.assistant_turns, "ask_backs": stats.ask_backs,
-            "turns_dropped": stats.turns_dropped, "synth_model": settings.synth_model,
+            "acknowledgements": stats.acknowledgements, "turns_dropped": stats.turns_dropped,
+            "turns_not_responsive": stats.turns_not_responsive, "synth_model": settings.synth_model,
+            "check_model": settings.check_model if settings.dataset_check else None,
             "licence": "Source texts © Thanissaro Bhikkhu, CC BY-NC 4.0 (dhammatalks.org). Non-commercial use only."}
     (root / "card.json").write_text(json.dumps(card, indent=2))
     log.info("dataset: %s", card)

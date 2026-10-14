@@ -60,6 +60,7 @@ class CollectResult:
     name: str
     planned: list[str] = field(default_factory=list)  # urls (dry run) or doc ids
     stats: IngestStats = field(default_factory=IngestStats)
+    transcribed: int = 0  # audio sent to ASR in this run
 
 
 def _author(spec: SourceSpec, detected: str = "thanissaro") -> str:
@@ -209,5 +210,6 @@ def collect(
 
             ok, failed = transcribe_pending(cat, get_settings(), sources=[name], grace_days=0,
                                             checkpoint=checkpoint)
+            res.transcribed = len(ok)
             log.info("%s: transcribed %d, failed %d", name, len(ok), len(failed))
     return results

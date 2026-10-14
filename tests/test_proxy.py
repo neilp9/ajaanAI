@@ -197,3 +197,12 @@ def test_vllm_args_snapshot_flags():
     assert snap[snap.index("--max-num-seqs") + 1] == "8"
     assert snap[snap.index("--max-num-batched-tokens") + 1] == str(QWEN.max_model_len)
     assert snap[snap.index("--reasoning-parser") + 1] == "qwen3"  # profile flags still present
+
+
+async def test_health_reports_what_is_served():
+    app = create_app(cfg(), serving="/data/models/run1/merged")
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://proxy") as client:
+        assert (await client.get("/health")).json() == {"ok": True, "serving": "/data/models/run1/merged"}
+        bare = create_app(cfg())
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=bare), base_url="http://proxy") as client:
+        assert (await client.get("/health")).json() == {"ok": True}

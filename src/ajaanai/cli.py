@@ -366,7 +366,7 @@ def eval_cmd(
                    f"interactivity={r['interactivity']}  n={r['n']} errors={r['errors']}")
         typer.echo(f"{'':20} replies/conv={r['replies_per_conversation']} words/reply median={r['reply_words_median']} "
                    f"p90={r['reply_words_p90']} asks_back={r['asks_back_share']} markdown={r['markdown_share']}")
-    typer.echo(f"Transcripts and judge notes: {out_dir / 'eval_rows.jsonl'}")
+    typer.echo(f"Transcripts, judge notes and summary: {out_dir}/<time>-<arms>.rows.jsonl / .summary.json")
 
 
 # --- talking to it -------------------------------------------------------------------------------

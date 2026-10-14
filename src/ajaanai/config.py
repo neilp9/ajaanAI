@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     # Keep the short questions back to the caller that Claude adds to some of his turns (the only
     # assistant words that aren't his). False rebuilds the dataset without them; no re-synthesis.
     dataset_ask_back: bool = True
+    # Same for the brief acknowledgements Claude may put before his sentences ("Planning, yes.").
+    dataset_acknowledge: bool = True
+    # Label every reply for whether it answers the caller's line (CHECK_MODEL) and cut each
+    # conversation at its first unresponsive reply. Runs after synthesis; resumable like it.
+    dataset_check: bool = True
+    check_model: str = "claude-haiku-4-5"
 
     # --- model (swappable; see models.py) --------------------------------------
     model_profile: str = "qwen3.5-27b"  # key in models.PROFILES, or "generic"

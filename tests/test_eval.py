@@ -42,3 +42,18 @@ def test_reply_stats_and_summary():
     s = summarize(rows, "a")
     assert s["n"] == 1 and s["errors"] == 1 and s["brevity"] == 3
     assert s["asks_back_share"] == 0.5 and s["markdown_share"] == 0.5 and s["reply_words_median"] == 6
+
+
+def test_each_run_gets_its_own_files(tmp_path):
+    from ajaanai.train.eval import results_stem, write_results
+
+    assert results_stem([Arm("tuned", "u"), Arm("base model", "u")], when="20261006-1142") == "20261006-1142-tuned-base_model"
+    path = write_results(tmp_path, [Arm("tuned", "u")], [{"arm": "tuned"}], {"tuned": {"n": 1}})
+    assert path.exists() and path.with_name(path.name.replace(".rows.jsonl", ".summary.json")).exists()
+
+
+def test_markdown_catches_italics_but_not_plain_text():
+    from ajaanai.train.eval import _MARKDOWN
+
+    assert _MARKDOWN.search("the self *exists* only as a strategy")
+    assert not _MARKDOWN.search("Breathe in. 3 x 4 = 12, and that's fine. Use a * if you must")

@@ -173,8 +173,10 @@ def collect_job(names: list[str] | None = None, limit: int | None = None, dry_ru
                               checkpoint=checkpoint)
         finally:
             cat.close()
+    if not dry_run and any(r.stats.new or r.stats.site_transcripts or r.transcribed for r in results):
+        rag_update.spawn()
     return [{"source": r.name, "planned": r.planned[:50], "new": r.stats.new, "seen": r.stats.seen,
-             "errors": r.stats.errors[:20]} for r in results]
+             "transcribed": r.transcribed, "errors": r.stats.errors[:20]} for r in results]
 
 
 @app.function(image=base_image, volumes={DATA: volume}, secrets=[secret], timeout=12 * 3600,
@@ -352,6 +354,7 @@ class Serve:
         s = get_settings()
         profile = active_profile()
         model = str(current_model_path(s.data_dir / "models") or profile.hf_id)
+        self.serving = model
         boot_log = s.data_dir / "logs" / f"vllm-boot-{time.strftime('%Y%m%d-%H%M%S')}.log"
         log.info("booting vLLM for %s (%s), snapshot=%s; full output in %s", model, profile.name, SNAPSHOT, boot_log)
         self.proc = _start_vllm(profile.vllm_args(model, SERVED_NAME, VLLM_PORT, sleep_mode=SNAPSHOT,
@@ -396,7 +399,7 @@ class Serve:
         from ajaanai.serve.proxy import create_app
 
         cfg = _proxy_config(f"http://127.0.0.1:{VLLM_PORT}/v1", SERVED_NAME, None, hosted=False)
-        return create_app(cfg, retrieve=self.retrieve)
+        return create_app(cfg, retrieve=self.retrieve, serving=self.serving)
 
     @modal.exit()
     def stop(self):

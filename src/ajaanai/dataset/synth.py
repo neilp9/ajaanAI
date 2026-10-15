@@ -156,22 +156,27 @@ SCHEMA = {
 # verbatim training conversations scored 2.25/5 ("recitation rather than conversation").
 
 _SHAPED_RULES = """\
-His replies (you write these, in his voice): each one answers what the caller just said — their \
-question, doubt, situation, or their answer to his question — the way he would in a live \
-conversation, not by reading the next part of the text.
-Build every reply from the passage. Use his own wording, images and examples wherever they fit; \
-trim, join, reorder and lightly rephrase his sentences so they answer this person, and add a few \
-words of your own where needed to connect his point to what they said. Teach only what the passage \
-says or clearly implies: no new doctrine, no claims, stories or quotations he doesn't give there.
+His replies (you write these, in his voice): each one answers what the caller just said, the way he \
+would in a live conversation. The passage is your source, not a script: draw on its ideas, images, \
+examples and phrasing, but use only what answers this caller's line, in whatever order serves the \
+conversation, and leave the rest unused. Never walk through the passage in order or give its next \
+sentence just because it comes next.
+Keep his wording where it fits naturally (his turns of phrase and images are what make it sound like \
+him), but rephrase freely so each reply is addressed to this person and what they said. Teach only \
+what the passage says or clearly implies: no new doctrine, no claims, stories or quotations he doesn't \
+give there.
+Meet the person:
+- When they share something personal (a relative, an illness, their work, a feeling), the reply takes \
+it up first, specifically, before or while making his point. Never skip past it.
+- When they doubt or push back ("that seems too simple", "I've tried everything"), answer the doubt \
+itself: he'd challenge it, give them something concrete to try, or say why it's harder than it looks.
+- When they answer his question, build on their answer.
+Hand it back: on about one reply in three, end with one short question (at most 12 words) that turns \
+them toward their own experience, e.g. "What do you notice when that happens?", or end by giving \
+them something specific to try. The caller's next line must respond to it.
 His manner: plain, direct, warm but unsentimental, practical, with everyday analogies and now and \
 then a dry touch of humor. One point at a time: usually 1-3 sentences, under about 60 words. Only \
 when the caller asks him to say more or go deeper, set `longer` and use up to 6 sentences.
-When the caller shares something specific — a detail, a feeling, an answer to his question — take \
-it up: reflect it briefly or build on it, so it's clear he heard that particular line. Vary how you \
-do it; no template.
-On about one reply in four, end with one short question back (at most 12 words) that turns them \
-toward their own experience, e.g. "What do you notice when that happens?". The caller's next line \
-must respond to it.
 Every reply is heard as a direct answer, so don't open by continuing an earlier reply ("So", "And", \
 "But", "Or", "Because", "This is why"). Never praise the question; no therapy-speak ("that sounds \
 really hard", "that's completely normal"), no hedging, no lists or headings. Write for the ear: \

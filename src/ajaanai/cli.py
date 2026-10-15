@@ -343,30 +343,88 @@ def promote(run_id: str):
                    f"uv run modal app stop {APP_NAME} && uv run ajaanai deploy")
 
 
+def _graders(s, judge: Optional[list[str]]) -> dict:
+    """judge name -> grader, from --judge (repeatable or comma-separated) or JUDGE_MODEL."""
+    from .train.eval import Judge, grader
+
+    judges = Judge.parse_list(judge or s.judge_model)
+    return {j.name: grader(j, anthropic_key=s.anthropic_api_key, base_url=s.judge_base_url,
+                           api_key=s.judge_api_key or s.openai_api_key) for j in judges}
+
+
+def _echo_summary(summary: dict) -> None:
+    for name, r in summary.items():
+        if name == "_agreement":
+            continue
+        typer.echo(f"{name:20} style={r['style']} fidelity={r['fidelity']} brevity={r['brevity']} "
+                   f"interactivity={r['interactivity']}  n={r['n']} errors={r['errors']}")
+        typer.echo(f"{'':20} replies/conv={r['replies_per_conversation']} words/reply median={r['reply_words_median']} "
+                   f"p90={r['reply_words_p90']} asks_back={r['asks_back_share']} markdown={r['markdown_share']}")
+        for j, js in (r.get("by_judge") or {}).items():
+            typer.echo(f"{'':20} {j:28} style={js['style']} fidelity={js['fidelity']} brevity={js['brevity']} "
+                       f"interactivity={js['interactivity']}  n={js['n']} errors={js['errors']}")
+    for pair, a in (summary.get("_agreement") or {}).items():
+        typer.echo(f"agreement, {pair} (n={a['n']}; diff = second minus first judge):")
+        for k, v in a.items():
+            if k != "n":
+                typer.echo(f"  {k:13} diff={v['mean_diff']:+} exact={v['exact']} within_1={v['within_1']} corr={v['corr']}"
+                           if v["mean_diff"] is not None else f"  {k:13} no overlapping scores")
+
+
 @app.command("eval")
 def eval_cmd(
     arm: list[str] = typer.Option(..., help="name=https://.../v1 or name=https://.../v1|model (repeatable)"),
     n: int = typer.Option(50, help="Conversations to sample"),
     turns: int = typer.Option(4, help="Replies per conversation (Claude plays the caller after the real opening)"),
     questions: Path = typer.Option(None, help="Defaults to data/dataset/eval_questions.jsonl"),
+    judge: Optional[list[str]] = typer.Option(
+        None, help="Judge model, repeatable: claude-opus-5-5, anthropic:<model> or openai:<model>. "
+                   "Default JUDGE_MODEL. The first is the headline score; others are reported alongside."),
 ):
     """Judge arms (endpoints) on whole held-out conversations: style, fidelity, brevity, interactivity."""
     _setup_logging()
     from .train.eval import Arm, run_eval
 
     s = get_settings()
-    s.require("anthropic_api_key")
+    s.require("anthropic_api_key")  # Claude plays the caller
     qpath = questions or s.data_dir / "dataset" / "eval_questions.jsonl"
     arms = [Arm.parse(a, s.endpoint_bearer_secret) for a in arm]
     out_dir = s.data_dir / "eval"
-    summary = run_eval(qpath, arms, s.judge_model, s.eval_caller_model, s.anthropic_api_key, n=n, turns=turns,
-                       out_dir=out_dir)
-    for name, r in summary.items():
-        typer.echo(f"{name:20} style={r['style']} fidelity={r['fidelity']} brevity={r['brevity']} "
-                   f"interactivity={r['interactivity']}  n={r['n']} errors={r['errors']}")
-        typer.echo(f"{'':20} replies/conv={r['replies_per_conversation']} words/reply median={r['reply_words_median']} "
-                   f"p90={r['reply_words_p90']} asks_back={r['asks_back_share']} markdown={r['markdown_share']}")
+    summary = run_eval(qpath, arms, _graders(s, judge), s.eval_caller_model, s.anthropic_api_key, n=n,
+                       turns=turns, out_dir=out_dir)
+    _echo_summary(summary)
     typer.echo(f"Transcripts, judge notes and summary: {out_dir}/<time>-<arms>.rows.jsonl / .summary.json")
+
+
+@app.command()
+def rejudge(
+    rows_file: Path = typer.Argument(..., help="A saved .rows.jsonl from `ajaanai eval`"),
+    judge: list[str] = typer.Option(..., help="Judge(s) to add, as for `eval --judge`"),
+    questions: Path = typer.Option(None, help="Eval questions the run used, for the reference passages "
+                                              "(default data/dataset/eval_questions.jsonl)"),
+):
+    """Score saved eval transcripts with more judges, and report how the judges agree."""
+    _setup_logging()
+    from .train.eval import rejudge as run_rejudge
+    from .train.eval import summaries
+
+    s = get_settings()
+    rows = [json.loads(line) for line in rows_file.open() if line.strip()]
+    qpath = questions or s.data_dir / "dataset" / "eval_questions.jsonl"
+    refs = {q["question"]: q for q in map(json.loads, qpath.open())} if qpath.exists() else {}
+    graders = _graders(s, judge)
+    rows = run_rejudge(rows, graders, refs)
+    missing = sum(1 for r in rows if "conversation" in r and not (r.get("reference") or r["question"] in refs))
+    if missing:
+        typer.echo(f"warning: {missing} rows have no reference passage in {qpath}; pass --questions")
+    out = rows_file.with_name(rows_file.name.replace(".rows.jsonl", "") + ".rejudged.rows.jsonl")
+    out.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows))
+    judge_names = list(dict.fromkeys(name for r in rows for name in r.get("judges", {})))
+    arms = list(dict.fromkeys(r["arm"] for r in rows))
+    summary = summaries(rows, arms, judge_names)
+    out.with_name(out.name.replace(".rows.jsonl", ".summary.json")).write_text(json.dumps(summary, indent=2))
+    _echo_summary(summary)
+    typer.echo(f"Rows with every judge's scores: {out}")
 
 
 # --- talking to it -------------------------------------------------------------------------------

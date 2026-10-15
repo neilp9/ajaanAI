@@ -77,9 +77,15 @@ The output is provider-neutral chat JSONL, split by document into train and eval
 ```bash
 ajaanai models                        # profiles: qwen3.5-27b (default), qwen3.5-9b, qwen3-32b, llama…, generic
 ajaanai train                         # TRAIN_BACKEND=modal: LoRA on Modal (H100 for 27B)
-ajaanai eval --arm tuned=$ENDPOINT_URL/v1 --arm base=https://…/v1
+ajaanai eval --arm tuned=$ENDPOINT_URL/v1 --arm base=https://…/v1 [--judge openai:<model>]
 ajaanai promote <run_id>              # the GPU endpoint serves it from the next cold start
 ```
+
+The eval's judge is configurable (`JUDGE_MODEL`, or `--judge`, repeatable): a Claude model, or
+`openai:<model>` for any OpenAI-compatible API. With several judges, the first gives the headline score
+and the others are reported alongside, with how closely they agree. A judge from another model family
+checks whether Claude favours Claude-like replies. To score transcripts you already have:
+`ajaanai rejudge data/eval/<run>.rows.jsonl --judge openai:<model> --questions <the questions it used>`.
 
 How to swap the model:
 - **Any Hugging Face model:** `MODEL_PROFILE=generic MODEL_ID=org/name`. Add a profile in

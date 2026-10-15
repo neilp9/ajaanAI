@@ -12,8 +12,12 @@ acknowledgement before his sentences (`acknowledge`) and an optional short quest
 Real retreat Q&A exchanges (passage.kind == "qa") are handled the same way: the real question opens
 the call and his real answer is spread over a few turns with brief caller follow-ups in between.
 
-Bulk runs go through the Message Batches API (50% cheaper, resumable); `--sample` runs
-synchronously for a quick look. `run_batch` / `run_sync` are shared with the responsiveness check
+With DATASET_REPLY_MODE=shaped, Claude instead *writes* each reply in his voice from the passage
+(his wording, images and examples wherever they fit, lightly reshaped to answer the caller), and
+lists the sentences it drew on (`sources`). See SYSTEM_SHAPED.
+
+Bulk runs go through the Message Batches API (50% cheaper, resumable); `--sample` sends
+concurrent requests for a quick look. `run_batch` / `run_sync` are shared with the responsiveness check
 (check.py).
 
 Stored results are matched by item id *and* a hash of the request's messages (`input_sha`), so an
@@ -29,6 +33,7 @@ import hashlib
 import json
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import anthropic
@@ -43,7 +48,7 @@ _INTRO = """You help build a training set for an assistant that talks with peopl
 and text chat — in the words of Thanissaro Bhikkhu, a Theravada monk. The conversations are real \
 back-and-forth, not lectures: he makes one point at a time, briefly, and the caller responds."""
 
-_RULES = """Each exchange is the caller's line followed by his reply.
+_CALLER_RULES = """Each exchange is the caller's line followed by his reply.
 
 Caller lines (you write these): usually under 25 words. Vary them: a follow-up, pushback or doubt, \
 the caller's own situation, "what do you mean by…?", a request for an example, or simply taking in \
@@ -56,8 +61,9 @@ Write them for the channel you're given, with a light touch (most lines should s
 a Pali term spelled the way speech recognition mishears it (e.g. "meta" for mettā, "jana" for jhāna).
 - text chat: typed messages — often shorter and more casual, sometimes lowercase or with a small \
 typo; Pali terms spelled however a layperson might type them.
-His replies are the same on both channels.
+His replies are the same on both channels."""
 
+_VERBATIM_RULES = """\
 His replies: `sentences` is the numbers of 1-3 of his sentences (about 60 words at most), read in \
 order, that answer the caller's line — what they just said, not merely the next part of the text. \
 Pick them from anywhere in the passage; consecutive sentences read best. Use each sentence at most \
@@ -82,6 +88,8 @@ on about one reply in four. Otherwise "".
 words) in his plain, direct manner — usually turning them toward their own experience, e.g. "What \
 do you notice when that happens?". The caller's next line must respond to it. Otherwise leave it "".
 Never write anything else on his side."""
+
+_RULES = f"{_CALLER_RULES}\n\n{_VERBATIM_RULES}"
 
 SYSTEM = f"""{_INTRO}
 
@@ -142,6 +150,98 @@ SCHEMA = {
     "additionalProperties": False,
 }
 
+# --- shaped replies (DATASET_REPLY_MODE=shaped) ----------------------------------------------------
+# Claude writes his replies from the passage instead of picking sentences, so a reply can meet what
+# the caller actually said. Verbatim replies capped interactivity: judged by the eval's own judge,
+# verbatim training conversations scored 2.25/5 ("recitation rather than conversation").
+
+_SHAPED_RULES = """\
+His replies (you write these, in his voice): each one answers what the caller just said — their \
+question, doubt, situation, or their answer to his question — the way he would in a live \
+conversation, not by reading the next part of the text.
+Build every reply from the passage. Use his own wording, images and examples wherever they fit; \
+trim, join, reorder and lightly rephrase his sentences so they answer this person, and add a few \
+words of your own where needed to connect his point to what they said. Teach only what the passage \
+says or clearly implies: no new doctrine, no claims, stories or quotations he doesn't give there.
+His manner: plain, direct, warm but unsentimental, practical, with everyday analogies and now and \
+then a dry touch of humor. One point at a time: usually 1-3 sentences, under about 60 words. Only \
+when the caller asks him to say more or go deeper, set `longer` and use up to 6 sentences.
+When the caller shares something specific — a detail, a feeling, an answer to his question — take \
+it up: reflect it briefly or build on it, so it's clear he heard that particular line. Vary how you \
+do it; no template.
+On about one reply in four, end with one short question back (at most 12 words) that turns them \
+toward their own experience, e.g. "What do you notice when that happens?". The caller's next line \
+must respond to it.
+Every reply is heard as a direct answer, so don't open by continuing an earlier reply ("So", "And", \
+"But", "Or", "Because", "This is why"). Never praise the question; no therapy-speak ("that sounds \
+really hard", "that's completely normal"), no hedging, no lists or headings. Write for the ear: \
+never mention "the passage", "the book", chapters, "tonight's talk" or earlier sessions, and leave \
+out transcription glitches (repeated words, broken fragments).
+`sources`: the numbers of the passage sentences the reply draws on (empty only for a reply that \
+just takes up what the caller said)."""
+
+SYSTEM_SHAPED = f"""{_INTRO}
+
+You will see one passage from his talks or writings, with each sentence numbered. Write 1-2 \
+conversations (2 if the passage covers two distinct points), each 3-6 exchanges, that this passage \
+can carry. Callers are practitioners, beginners, or people going through something difficult.
+
+{_CALLER_RULES}
+
+{_SHAPED_RULES}
+
+Mark the passage unusable if it is chanting, logistics, a fragment, mostly a quotation of someone \
+else, or otherwise not a teaching that could answer a caller."""
+
+SYSTEM_QA_SHAPED = f"""{_INTRO}
+
+You will see a real question someone asked him at a retreat, and his real answer with each \
+sentence numbered. Turn it into one conversation of 2-5 exchanges: the first caller line is \
+the real question (copy it), and his answer is spread over the replies, with caller lines in between \
+that the next part genuinely answers. Keep his answer roughly in order; you may leave out parts \
+that don't fit a one-to-one conversation (references to earlier sessions, retreat logistics).
+
+{_CALLER_RULES}
+
+{_SHAPED_RULES}
+
+Mark it unusable if the question is about logistics or the answer can't stand without the retreat \
+context."""
+
+SCHEMA_SHAPED = {
+    "type": "object",
+    "properties": {
+        "usable": {"type": "boolean"},
+        "topics": {"type": "array", "items": {"type": "string"}},
+        "conversations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "exchanges": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "caller": {"type": "string"},
+                                "reply": {"type": "string"},
+                                "sources": {"type": "array", "items": {"type": "integer"}},
+                                "longer": {"type": "boolean"},
+                            },
+                            "required": ["caller", "reply", "sources", "longer"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+                "required": ["exchanges"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["usable", "topics", "conversations"],
+    "additionalProperties": False,
+}
+
 
 def render(p: Passage) -> str:
     numbered = "\n".join(f"[{i}] {s}" for i, s in enumerate(split_sentences(p.text)))
@@ -151,13 +251,19 @@ def render(p: Passage) -> str:
     return f"{channel}\n\nTitle: {p.title}\n\n{numbered}\n\nWrite 1-2 conversations."
 
 
-def _params(model: str, p: Passage) -> dict:
+def _params(model: str, p: Passage, shaped: bool = False) -> dict:
+    qa = p.question is not None
+    if shaped:
+        # Written replies are longer than sentence numbers; room too for the model's own thinking.
+        system, schema, max_tokens = (SYSTEM_QA_SHAPED if qa else SYSTEM_SHAPED), SCHEMA_SHAPED, 16000
+    else:
+        system, schema, max_tokens = (SYSTEM_QA if qa else SYSTEM), SCHEMA, 4096
     return dict(
         model=model,
-        max_tokens=4096,
-        system=SYSTEM_QA if p.question is not None else SYSTEM,
+        max_tokens=max_tokens,
+        system=system,
         messages=[{"role": "user", "content": render(p)}],
-        output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
+        output_config={"format": {"type": "json_schema", "schema": schema}},
     )
 
 
@@ -217,14 +323,40 @@ class SynthStore:
         self.batches.write_text(json.dumps(ids))
 
 
-def run_sync(client: anthropic.Anthropic, items: list[tuple[str, dict]], store: SynthStore) -> int:
-    """One request at a time for (id, params) items not yet in the store. Returns results stored."""
-    n = 0
-    for item_id, params in store.todo(items):
-        out = _parse(client.messages.create(**params))
-        if out is not None:
-            store.append(item_id, out, input_sha(params))
-            n += 1
+class _Usage:
+    """Token totals for a run, logged at the end so a sample shows what a full run would cost."""
+
+    def __init__(self):
+        self.requests = self.input = self.output = 0
+
+    def add(self, message) -> None:
+        u = getattr(message, "usage", None)
+        self.requests += 1
+        self.input += getattr(u, "input_tokens", 0) or 0
+        self.output += getattr(u, "output_tokens", 0) or 0
+
+    def log(self, what: str) -> None:
+        if self.requests:
+            log.info("%s: %d requests, %d input / %d output tokens (%.0f / %.0f per request)", what,
+                     self.requests, self.input, self.output, self.input / self.requests,
+                     self.output / self.requests)
+
+
+def run_sync(client: anthropic.Anthropic, items: list[tuple[str, dict]], store: SynthStore,
+             workers: int = 8) -> int:
+    """Concurrent requests for (id, params) items not yet in the store. Returns results stored."""
+    n, usage = 0, _Usage()
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(client.messages.create, **params): (item_id, params)
+                   for item_id, params in store.todo(items)}
+        for fut in as_completed(futures):
+            item_id, params = futures[fut]
+            message = fut.result()
+            usage.add(message)
+            if (out := _parse(message)) is not None:
+                store.append(item_id, out, input_sha(params))  # appended here, on one thread
+                n += 1
+    usage.log("sync")
     return n
 
 
@@ -247,7 +379,7 @@ def run_batch(client: anthropic.Anthropic, items: list[tuple[str, dict]], store:
         store.idmap.write_text(json.dumps({f"p{j}": [i, input_sha(params)] for j, (i, params) in enumerate(todo)}))
 
     idmap = json.loads(store.idmap.read_text()) if store.idmap.exists() else {}
-    stored = 0
+    stored, usage = 0, _Usage()
     for batch_id in list(pending):
         while (b := client.messages.batches.retrieve(batch_id)).processing_status != "ended":
             c = b.request_counts
@@ -259,6 +391,7 @@ def run_batch(client: anthropic.Anthropic, items: list[tuple[str, dict]], store:
         for result in client.messages.batches.results(batch_id):
             if result.result.type != "succeeded":
                 continue
+            usage.add(result.result.message)
             out = _parse(result.result.message)
             if out is not None and result.custom_id in idmap:
                 item_id, sha = idmap[result.custom_id]
@@ -266,6 +399,7 @@ def run_batch(client: anthropic.Anthropic, items: list[tuple[str, dict]], store:
                 stored += 1
         pending.remove(batch_id)
         store.set_pending_batches(pending)
+    usage.log("batch")
     return stored
 
 

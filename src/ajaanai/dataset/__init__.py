@@ -16,7 +16,9 @@ log = logging.getLogger(__name__)
 
 
 def dataset_dir(settings: Settings) -> Path:
-    return settings.data_dir / "dataset"
+    """data/dataset (verbatim replies) or data/dataset-shaped: each reply mode keeps its own synthesis
+    results, check labels and training files, so switching modes never reuses the other's results."""
+    return settings.data_dir / ("dataset" if settings.dataset_reply_mode == "verbatim" else "dataset-shaped")
 
 
 def style_passages(cat: Catalog) -> list[Passage]:
@@ -68,10 +70,11 @@ def build_dataset(cat: Catalog, settings: Settings, *, sample: int | None = None
         return {i: input_sha(params) for i, params in items}
 
     synth_store = SynthStore(root)
-    synth_items = [(p.id, _params(settings.synth_model, p)) for p in passages]
+    shaped = settings.dataset_reply_mode == "shaped"
+    synth_items = [(p.id, _params(settings.synth_model, p, shaped=shaped)) for p in passages]
     run(synth_items, synth_store)
     synth = synth_store.load(expected(synth_items))
-    extras = dict(ask_back=settings.dataset_ask_back, acknowledge=settings.dataset_acknowledge)
+    extras = dict(ask_back=settings.dataset_ask_back, acknowledge=settings.dataset_acknowledge, shaped=shaped)
 
     # 2. A cheap model labels whether each reply answers the caller's line.
     responsive = None
@@ -89,7 +92,7 @@ def build_dataset(cat: Catalog, settings: Settings, *, sample: int | None = None
     write_jsonl(root / "train.jsonl", train)
     write_jsonl(root / "eval.jsonl", evals)
     write_jsonl(root / "eval_questions.jsonl", eval_qs)
-    card = {"passages": len(passages), "train": stats.train, "eval": stats.eval,
+    card = {"reply_mode": settings.dataset_reply_mode, "passages": len(passages), "train": stats.train, "eval": stats.eval,
             "by_type": stats.by_type, "by_channel": stats.by_channel, "skipped_unusable": stats.skipped_unusable,
             "assistant_turns": stats.assistant_turns, "ask_backs": stats.ask_backs,
             "acknowledgements": stats.acknowledgements, "turns_dropped": stats.turns_dropped,

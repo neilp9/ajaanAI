@@ -5,7 +5,8 @@ see chunk.passage_channel), then alternating caller / teacher turns.
 Every teacher turn is his own sentences, kept short (1-3 sentences) unless the caller asked for
 more. The only other words on his side are optional Claude-written extras (see synth.py): a brief
 acknowledgement before his sentences (DATASET_ACKNOWLEDGE) and a short question back after them
-(DATASET_ASK_BACK).
+(DATASET_ASK_BACK). With DATASET_REPLY_MODE=shaped, teacher turns are instead written by Claude in his
+voice from the passage (`shaped=True` here); the same length and opening rules apply.
 
 Example types:
   conversation           scripted call built on a passage of his talks or writings
@@ -86,6 +87,21 @@ def _reply(sentences: list[str], ids: list[int], *, longer: bool, used: set[int]
     return text
 
 
+_LIST = re.compile(r"^(?:[-*]\s|\d+[.)]\s)|\*\*|•")  # list or markdown formatting
+
+
+def _shaped_reply(text: str, *, longer: bool) -> str | None:
+    """A written reply (shaped mode), or None if it breaks the rules. Same limits as a verbatim reply,
+    plus room for the short question back that verbatim mode adds separately."""
+    text = " ".join(text.split())
+    max_s, max_w = (MAX_LONG_SENTENCES, MAX_LONG_WORDS) if longer else (MAX_TURN_SENTENCES, MAX_TURN_WORDS)
+    if not text or len(split_sentences(text)) > max_s + 1 or len(text.split()) > max_w + MAX_ASK_BACK_WORDS:
+        return None
+    if _DANGLING_START.match(text) or _LIST.search(text):
+        return None
+    return text
+
+
 def _ask_back(text: str) -> str | None:
     text = " ".join(text.split())
     return text if text.endswith("?") and len(text.split()) <= MAX_ASK_BACK_WORDS else None
@@ -98,10 +114,11 @@ def _acknowledgement(text: str) -> str | None:
     return text if text[-1] in ".!" else text + "."
 
 
-def conversation_turns(p: Passage, convo: dict, *, ask_back: bool = True,
-                       acknowledge: bool = True) -> tuple[list[dict], list[bool], list[bool], int]:
+def conversation_turns(p: Passage, convo: dict, *, ask_back: bool = True, acknowledge: bool = True,
+                       shaped: bool = False) -> tuple[list[dict], list[bool], list[bool], int]:
     """(user/assistant messages, per-reply ask-back flags, per-reply acknowledgement flags,
-    exchanges dropped) for one synthesized conversation."""
+    exchanges dropped) for one synthesized conversation. In shaped mode a reply's ask-back flag
+    means it ends on a question; `ask_back` / `acknowledge` don't apply (they're part of the text)."""
     sentences = split_sentences(p.text)
     exchanges = convo.get("exchanges", [])
     msgs: list[dict] = []
@@ -110,6 +127,14 @@ def conversation_turns(p: Passage, convo: dict, *, ask_back: bool = True,
     acks: list[bool] = []
     for n, ex in enumerate(exchanges):
         caller = p.question if (n == 0 and p.question) else " ".join(ex.get("caller", "").split())
+        if shaped:
+            reply = _shaped_reply(ex.get("reply", ""), longer=bool(ex.get("longer")))
+            if not caller or reply is None:
+                return msgs, asks, acks, len(exchanges) - n
+            msgs += [{"role": "user", "content": caller}, {"role": "assistant", "content": reply}]
+            asks.append(reply.endswith("?"))
+            acks.append(False)
+            continue
         reply = _reply(sentences, ex.get("sentences", []), longer=bool(ex.get("longer")), used=used)
         if not caller or reply is None:
             return msgs, asks, acks, len(exchanges) - n
@@ -132,7 +157,8 @@ def conversation_turns(p: Passage, convo: dict, *, ask_back: bool = True,
 
 
 def conversation_candidates(passages: list[Passage], synth: dict[str, dict], *, ask_back: bool = True,
-                            acknowledge: bool = True, stats: BuildStats | None = None) -> list[Candidate]:
+                            acknowledge: bool = True, shaped: bool = False,
+                            stats: BuildStats | None = None) -> list[Candidate]:
     """Every synthesized conversation that survives the reply rules, deduplicated by opening line."""
     stats = stats if stats is not None else BuildStats()
     out: list[Candidate] = []
@@ -145,7 +171,8 @@ def conversation_candidates(passages: list[Passage], synth: dict[str, dict], *, 
             stats.skipped_unusable += 1
             continue
         for k, convo in enumerate(result.get("conversations", [])):
-            turns, asks, acks, dropped = conversation_turns(p, convo, ask_back=ask_back, acknowledge=acknowledge)
+            turns, asks, acks, dropped = conversation_turns(p, convo, ask_back=ask_back, acknowledge=acknowledge,
+                                                            shaped=shaped)
             stats.turns_dropped += dropped
             if not turns or turns[0]["content"].lower() in seen_q:
                 continue
@@ -155,14 +182,15 @@ def conversation_candidates(passages: list[Passage], synth: dict[str, dict], *, 
 
 
 def build_examples(passages: list[Passage], synth: dict[str, dict], eval_fraction: float, *,
-                   ask_back: bool = True, acknowledge: bool = True,
+                   ask_back: bool = True, acknowledge: bool = True, shaped: bool = False,
                    responsive: dict[str, list[bool]] | None = None,
                    ) -> tuple[list[dict], list[dict], list[dict], BuildStats]:
     """Returns (train, eval, eval_questions, stats). `responsive` maps conversation id -> one label
     per teacher reply from the responsiveness check; each conversation is cut at its first False."""
     stats = BuildStats()
     train, evals, eval_qs = [], [], []
-    for c in conversation_candidates(passages, synth, ask_back=ask_back, acknowledge=acknowledge, stats=stats):
+    for c in conversation_candidates(passages, synth, ask_back=ask_back, acknowledge=acknowledge, shaped=shaped,
+                                     stats=stats):
         p = c.passage
         turns, cut = responsive_prefix(c.turns, (responsive or {}).get(c.conv_id))
         stats.turns_not_responsive += cut

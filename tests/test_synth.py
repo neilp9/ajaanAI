@@ -119,3 +119,18 @@ def test_rows_saved_before_hashing_count_as_current(tmp_path):
     items = _items(ps)
     assert store.todo(items) == []
     assert set(store.load({i: input_sha(params) for i, params in items})) == {p.id for p in ps}
+
+
+def test_shaped_mode_has_its_own_prompt_schema_and_directory(tmp_path):
+    from ajaanai.config import Settings
+    from ajaanai.dataset import dataset_dir
+    from ajaanai.dataset.synth import SCHEMA, SCHEMA_SHAPED, SYSTEM, SYSTEM_SHAPED
+
+    p = passages()[0]
+    verbatim, shaped = _params("m", p), _params("m", p, shaped=True)
+    assert verbatim["system"] == SYSTEM and verbatim["output_config"]["format"]["schema"] == SCHEMA
+    assert shaped["system"] == SYSTEM_SHAPED and shaped["output_config"]["format"]["schema"] == SCHEMA_SHAPED
+    # same messages, so the input hash can't tell the modes apart: they must not share a store
+    assert input_sha(verbatim) == input_sha(shaped)
+    assert dataset_dir(Settings(data_dir=tmp_path)).name == "dataset"
+    assert dataset_dir(Settings(data_dir=tmp_path, dataset_reply_mode="shaped")).name == "dataset-shaped"

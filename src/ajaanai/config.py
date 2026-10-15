@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     # conversation at its first unresponsive reply. Runs after synthesis; resumable like it.
     dataset_check: bool = True
     check_model: str = "claude-haiku-4-5"
+    # How his replies are built. verbatim: Claude picks his sentences by number (every word his,
+    # bar the extras above). shaped: Claude writes each reply in his voice from the passage, reusing
+    # his wording where it fits, so it can answer what the caller actually said. Each mode keeps its
+    # own results and output under data/dataset[-shaped]/.
+    dataset_reply_mode: Literal["verbatim", "shaped"] = "verbatim"
 
     # --- model (swappable; see models.py) --------------------------------------
     model_profile: str = "qwen3.5-27b"  # key in models.PROFILES, or "generic"

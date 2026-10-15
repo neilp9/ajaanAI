@@ -250,7 +250,7 @@ def build_dataset_cmd(
     stats = build_dataset(open_catalog(), s, sample=sample, use_batches=not no_batch)
     typer.echo(f"train={stats.train} eval={stats.eval} by_type={stats.by_type}")
     if push and not sample:
-        _modal_volume("put", "--force", VOLUME, str(dataset_dir(s)), "/dataset")
+        _modal_volume("put", "--force", VOLUME, str(dataset_dir(s)), "/" + dataset_dir(s).name)
 
 
 @app.command()
@@ -263,9 +263,12 @@ def train(
     _setup_logging()
     s = get_settings()
     backend = backend or s.train_backend
-    root = s.data_dir / "dataset"
+    from .dataset import dataset_dir
+
+    root = dataset_dir(s)  # DATASET_REPLY_MODE picks data/dataset or data/dataset-shaped
     if backend == "modal":
-        out = _run_or_spawn("finetune", wait, result="`ajaanai runs`", max_steps=max_steps)
+        out = _run_or_spawn("finetune", wait, result="`ajaanai runs`", max_steps=max_steps,
+                            dataset_subdir=root.name)
         if out:
             typer.echo(f"Trained run {out}. Evaluate it, then: ajaanai promote {out}")
         return
@@ -356,7 +359,9 @@ def eval_cmd(
 
     s = get_settings()
     s.require("anthropic_api_key")
-    qpath = questions or s.data_dir / "dataset" / "eval_questions.jsonl"
+    from .dataset import dataset_dir
+
+    qpath = questions or dataset_dir(s) / "eval_questions.jsonl"
     arms = [Arm.parse(a, s.endpoint_bearer_secret) for a in arm]
     out_dir = s.data_dir / "eval"
     summary = run_eval(qpath, arms, s.judge_model, s.eval_caller_model, s.anthropic_api_key, n=n, turns=turns,

@@ -180,3 +180,33 @@ def test_responsiveness_check_cuts_at_first_unresponsive_reply():
     # missing or malformed labels keep the conversation
     kept, _, _, _ = build_examples(ps, synth, 0.0, responsive={cand.conv_id: [True]})
     assert len(kept[0]["messages"]) == 9
+
+
+def sx(caller, reply, longer=False):
+    return {"caller": caller, "reply": reply, "sources": [0], "longer": longer}
+
+
+def test_shaped_replies_are_the_written_text():
+    ps = talk_passage()
+    synth = {ps[0].id: {"usable": True, "topics": [], "conversations": [{"exchanges": [
+        sx("How do I start?", "Start with the breath. Notice where it feels good."),
+        sx("My shoulders, mostly.", "Shoulders hold a lot. Let the breath ease them. What happens when you do?"),
+        sx("They loosen a bit.", "Good. Stay with that feeling."),
+    ]}]}}
+    train, _, _, stats = build_examples(ps, synth, eval_fraction=0.0, shaped=True)
+    msgs = train[0]["messages"]
+    assert [m["content"] for m in msgs[1:]] == [
+        "How do I start?", "Start with the breath. Notice where it feels good.",
+        "My shoulders, mostly.", "Shoulders hold a lot. Let the breath ease them. What happens when you do?",
+        "They loosen a bit.", "Good. Stay with that feeling."]
+    assert stats.assistant_turns == 3 and stats.ask_backs == 1 and stats.acknowledgements == 0
+
+
+def test_shaped_reply_rules_end_the_conversation():
+    p = talk_passage()[0]
+    ok = sx("Q1", "Plain answer here.")
+    long_reply = " ".join(["This is one sentence of the reply."] * 6)  # 6 sentences, not `longer`
+    for bad in (long_reply, "So the answer is plain.", "- first point - second point", "**Breath** first.", ""):
+        turns, _, _, dropped = conversation_turns(p, {"exchanges": [ok, sx("Q2", bad)]}, shaped=True)
+        assert [m["content"] for m in turns] == ["Q1", "Plain answer here."] and dropped == 1, bad
+    assert conversation_turns(p, {"exchanges": [sx("Q", long_reply, longer=True)]}, shaped=True)[0]

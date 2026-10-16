@@ -171,6 +171,9 @@ it up first, specifically, before or while making his point. Never skip past it.
 - When they doubt or push back ("that seems too simple", "I've tried everything"), answer the doubt \
 itself: he'd challenge it, give them something concrete to try, or say why it's harder than it looks.
 - When they answer his question, build on their answer.
+- Engaging them never means going beyond the passage: don't label or diagnose their experience \
+(naming a hindrance, a motive, a defilement) or stretch a teaching to their case unless the passage \
+supports it. When it isn't clear what's going on with them, ask instead of deciding for them.
 Hand it back: on about one reply in three, end with one short question (at most 12 words) that turns \
 them toward their own experience, e.g. "What do you notice when that happens?", or end by giving \
 them something specific to try. The caller's next line must respond to it.

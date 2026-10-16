@@ -1,4 +1,4 @@
-"""Dataset pipeline: catalog -> passages -> Claude-scripted conversations -> multi-turn chat JSONL."""
+"""Dataset pipeline: catalog -> passages -> LLM-scripted conversations -> multi-turn chat JSONL."""
 
 from __future__ import annotations
 
@@ -48,8 +48,7 @@ def _sample(passages: list[Passage], n: int, qa_share: float = 0.2) -> list[Pass
 
 def build_dataset(cat: Catalog, settings: Settings, *, sample: int | None = None,
                   use_batches: bool = True) -> BuildStats:
-    import anthropic
-
+    from ..llm import make_backend, parse_spec
     from .check import check_params
     from .synth import SynthStore, _params, input_sha, run_batch, run_sync
 
@@ -59,20 +58,17 @@ def build_dataset(cat: Catalog, settings: Settings, *, sample: int | None = None
     if sample:
         passages = _sample(passages, sample)
         root = root / "sample"
-    batched = use_batches and not sample
-    run = (lambda items, store: run_batch(client, items, store)) if batched else \
-          (lambda items, store: run_sync(client, items, store))
-    # Falls back to the SDK's default credentials (env / `ant auth login` profile) when unset.
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key) if settings.anthropic_api_key else anthropic.Anthropic()
+    run = run_batch if use_batches and not sample else run_sync
 
-    # 1. Claude scripts the conversations.
+    # 1. The synth model scripts the conversations.
     def expected(items):
         return {i: input_sha(params) for i, params in items}
 
     synth_store = SynthStore(root)
     shaped = settings.dataset_reply_mode == "shaped"
-    synth_items = [(p.id, _params(settings.synth_model, p, shaped=shaped)) for p in passages]
-    run(synth_items, synth_store)
+    synth_spec = parse_spec(settings.synth_model)
+    synth_items = [(p.id, _params(synth_spec.model, p, shaped=shaped)) for p in passages]
+    run(make_backend(synth_spec, settings), synth_items, synth_store)
     synth = synth_store.load(expected(synth_items))
     extras = dict(ask_back=settings.dataset_ask_back, acknowledge=settings.dataset_acknowledge, shaped=shaped)
 
@@ -82,8 +78,9 @@ def build_dataset(cat: Catalog, settings: Settings, *, sample: int | None = None
         candidates = conversation_candidates(passages, synth, **extras)
         log.info("checking %d conversations for responsiveness", len(candidates))
         check_store = SynthStore(root, prefix="check")
-        check_items = [(c.conv_id, check_params(settings.check_model, c.turns)) for c in candidates]
-        run(check_items, check_store)
+        check_spec = parse_spec(settings.check_model)
+        check_items = [(c.conv_id, check_params(check_spec.model, c.turns)) for c in candidates]
+        run(make_backend(check_spec, settings), check_items, check_store)
         responsive = {cid: r.get("responsive") for cid, r in check_store.load(expected(check_items)).items()}
 
     # 3. Assemble the training files.

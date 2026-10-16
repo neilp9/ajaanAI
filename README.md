@@ -5,7 +5,7 @@ Talk by phone with an AI trained on the Dhamma talks and writings of Thanissaro 
 
 ```
 dhammatalks.org ──► catalog ──► transcripts ──► training data ──► fine-tuned model ──┐
-  (evening talks daily,  (SQLite)  (site, else ASR)  (Claude writes the    (any open or     │
+  (evening talks daily,  (SQLite)  (site, else ASR)  (an LLM writes the    (any open or     │
    other sections on                                 questions; answers    hosted LLM)      │
    demand)                                           are his own words)                    ▼
                                                                          RAG + filler proxy (Modal)
@@ -65,11 +65,11 @@ To compare providers on a few talks: `ajaanai transcribe --provider deepgram --l
 
 ```bash
 ajaanai build-dataset --sample 50     # quick look: data/dataset/sample/train.jsonl
-ajaanai build-dataset                 # full run via the Claude Batches API (50% cheaper, resumable)
+ajaanai build-dataset                 # full run via the provider's batch API (50% cheaper, resumable)
 ```
 
-Claude writes the questions a caller might ask of each passage. It also picks which of his
-**own sentences** make up a short spoken answer. Every assistant turn is therefore in his words.
+An LLM (`SYNTH_MODEL`: `anthropic:<model>` or `openai:<model>`) writes the questions a caller
+might ask of each passage. It also picks which of his **own sentences** make up a short spoken answer. Every assistant turn is therefore in his words.
 The output is provider-neutral chat JSONL, split by document into train and eval sets.
 
 ## 3. Fine-tune (model is swappable)
@@ -81,10 +81,12 @@ ajaanai eval --arm tuned=$ENDPOINT_URL/v1 --arm base=https://…/v1 [--judge ope
 ajaanai promote <run_id>              # the GPU endpoint serves it from the next cold start
 ```
 
-The eval's judge is configurable (`JUDGE_MODEL`, or `--judge`, repeatable): a Claude model, or
-`openai:<model>` for any OpenAI-compatible API. With several judges, the first gives the headline score
-and the others are reported alongside, with how closely they agree. A judge from another model family
-checks whether Claude favours Claude-like replies. To score transcripts you already have:
+Every LLM helper names its provider: `anthropic:<model>` or `openai:<model>` (any
+OpenAI-compatible API at `OPENAI_BASE_URL`). This covers `SYNTH_MODEL`, `CHECK_MODEL`,
+`EVAL_CALLER_MODEL` and the eval's judge (`JUDGE_MODEL`, or `--judge`, repeatable). With several
+judges, the first gives the headline score and the others are reported alongside, with how closely
+they agree. Judges from different model families check whether a judge favours replies that sound
+like its own family's. To score transcripts you already have:
 `ajaanai rejudge data/eval/<run>.rows.jsonl --judge openai:<model> --questions <the questions it used>`.
 
 How to swap the model:

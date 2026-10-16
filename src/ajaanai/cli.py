@@ -235,11 +235,11 @@ def status(pull: bool = typer.Option(True, help="Fetch the latest catalog from M
 @app.command("build-dataset")
 def build_dataset_cmd(
     sample: Optional[int] = typer.Option(None, help="Synthesize for N random passages only (sync, quick look)"),
-    no_batch: bool = typer.Option(False, help="Use synchronous calls instead of the Batches API"),
+    no_batch: bool = typer.Option(False, help="Use synchronous calls instead of the batch API"),
     pull: bool = typer.Option(True, help="Pull the catalog from Modal first"),
     push: bool = typer.Option(True, help="Upload the dataset to the Modal volume afterwards"),
 ):
-    """Turn the catalog into chat JSONL training data (questions written by Claude, answers his words)."""
+    """Turn the catalog into chat JSONL training data (questions written by SYNTH_MODEL, answers his words)."""
     _setup_logging()
     if pull:
         _pull_catalog()
@@ -348,11 +348,10 @@ def promote(run_id: str):
 
 def _graders(s, judge: Optional[list[str]]) -> dict:
     """judge name -> grader, from --judge (repeatable or comma-separated) or JUDGE_MODEL."""
-    from .train.eval import Judge, grader
+    from .llm import make_backend, parse_specs
+    from .train.eval import grader
 
-    judges = Judge.parse_list(judge or s.judge_model)
-    return {j.name: grader(j, anthropic_key=s.anthropic_api_key, base_url=s.judge_base_url,
-                           api_key=s.judge_api_key or s.openai_api_key) for j in judges}
+    return {j.name: grader(j, make_backend(j, s)) for j in parse_specs(judge or s.judge_model)}
 
 
 def _echo_summary(summary: dict) -> None:
@@ -378,24 +377,25 @@ def _echo_summary(summary: dict) -> None:
 def eval_cmd(
     arm: list[str] = typer.Option(..., help="name=https://.../v1 or name=https://.../v1|model (repeatable)"),
     n: int = typer.Option(50, help="Conversations to sample"),
-    turns: int = typer.Option(4, help="Replies per conversation (Claude plays the caller after the real opening)"),
+    turns: int = typer.Option(4, help="Replies per conversation (EVAL_CALLER_MODEL plays the caller after the real opening)"),
     questions: Path = typer.Option(None, help="Defaults to data/dataset/eval_questions.jsonl"),
     judge: Optional[list[str]] = typer.Option(
-        None, help="Judge model, repeatable: claude-opus-5-5, anthropic:<model> or openai:<model>. "
+        None, help="Judge model, repeatable: anthropic:<model> or openai:<model>. "
                    "Default JUDGE_MODEL. The first is the headline score; others are reported alongside."),
 ):
     """Judge arms (endpoints) on whole held-out conversations: style, fidelity, brevity, interactivity."""
     _setup_logging()
+    from .llm import make_backend, parse_spec
     from .train.eval import Arm, run_eval
 
     s = get_settings()
-    s.require("anthropic_api_key")  # Claude plays the caller
+    caller = parse_spec(s.eval_caller_model)
     from .dataset import dataset_dir
 
     qpath = questions or dataset_dir(s) / "eval_questions.jsonl"
     arms = [Arm.parse(a, s.endpoint_bearer_secret) for a in arm]
     out_dir = s.data_dir / "eval"
-    summary = run_eval(qpath, arms, _graders(s, judge), s.eval_caller_model, s.anthropic_api_key, n=n,
+    summary = run_eval(qpath, arms, _graders(s, judge), make_backend(caller, s), caller.model, n=n,
                        turns=turns, out_dir=out_dir)
     _echo_summary(summary)
     typer.echo(f"Transcripts, judge notes and summary: {out_dir}/<time>-<arms>.rows.jsonl / .summary.json")

@@ -123,6 +123,7 @@ def test_collect_reports_transcribed(tmp_path, monkeypatch):
 
     monkeypatch.setitem(collections.COLLECTORS, "audio_index", lambda name, *a: CollectResult(name))
     monkeypatch.setattr(transcribe, "transcribe_pending", lambda *a, **kw: (["d1", "d2"], ["d3"]))
+    monkeypatch.setattr("ajaanai.config.get_settings", lambda: Settings(_env_file=None))  # not the local .env
     srcs = {"talks": SourceSpec(kind="audio_series", parser="audio_index", start_urls=["/audio/"], transcribe=True),
             "quiet": SourceSpec(kind="audio_series", parser="audio_index", start_urls=["/audio/"])}
     cat = Catalog(tmp_path / "c.sqlite")

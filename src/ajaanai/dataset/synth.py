@@ -1,26 +1,26 @@
-"""Conversation synthesis with Claude.
+"""Conversation synthesis by an LLM (SYNTH_MODEL: anthropic:<model> or openai:<model>).
 
-For each passage, Claude scripts a short conversation — a voice call or a text chat, per
-`passage_channel` — whose caller lines are Claude's (styled for that channel), and
-each of the teacher's turns is a few of *his own sentences*, picked by number to answer the caller's
-line (about a third of caller lines go off-script, so replies learn to respond rather than just
-continue the passage). The only teacher-side words Claude may write are an optional brief
-acknowledgement before his sentences (`acknowledge`) and an optional short question back after them
-(`ask_back`); both are kept apart in the results so the build can include or drop them
-(DATASET_ACKNOWLEDGE, DATASET_ASK_BACK).
+For each passage, the synth model scripts a short conversation — a voice call or a text chat, per
+`passage_channel` — whose caller lines are its own (styled for that channel), and each of the
+teacher's turns is a few of *his own sentences*, picked by number to answer the caller's line (about
+a third of caller lines go off-script, so replies learn to respond rather than just continue the
+passage). The only teacher-side words the model may write are an optional brief acknowledgement
+before his sentences (`acknowledge`) and an optional short question back after them (`ask_back`);
+both are kept apart in the results so the build can include or drop them (DATASET_ACKNOWLEDGE,
+DATASET_ASK_BACK).
 
 Real retreat Q&A exchanges (passage.kind == "qa") are handled the same way: the real question opens
 the call and his real answer is spread over a few turns with brief caller follow-ups in between.
 
-With DATASET_REPLY_MODE=shaped, Claude instead *writes* each reply in his voice from the passage
+With DATASET_REPLY_MODE=shaped, the model instead *writes* each reply in his voice from the passage
 (his wording, images and examples wherever they fit, lightly reshaped to answer the caller), and
 lists the sentences it drew on (`sources`). See SYSTEM_SHAPED.
 
-Bulk runs go through the Message Batches API (50% cheaper, resumable); `--sample` sends
+Bulk runs go through the provider's batch API (50% cheaper, resumable); `--sample` sends
 concurrent requests for a quick look. `run_batch` / `run_sync` are shared with the responsiveness check
 (check.py).
 
-Stored results are matched by item id *and* a hash of the request's messages (`input_sha`), so an
+Stored results are matched by item id *and* a hash of the request's user message (`input_sha`), so an
 item whose input changed — e.g. a talk whose ASR text was replaced by the site transcript, which
 keeps its passage ids but renumbers the sentences — is redone instead of reusing sentence numbers
 that now point elsewhere. The model and system prompt are not hashed: changing them doesn't redo
@@ -36,10 +36,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import anthropic
-from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
-from anthropic.types.messages.batch_create_params import Request
-
+from ..llm import Backend, Reply, Request
 from .chunk import Passage, passage_channel, split_sentences
 
 log = logging.getLogger(__name__)
@@ -151,7 +148,7 @@ SCHEMA = {
 }
 
 # --- shaped replies (DATASET_REPLY_MODE=shaped) ----------------------------------------------------
-# Claude writes his replies from the passage instead of picking sentences, so a reply can meet what
+# The synth model writes his replies from the passage instead of picking sentences, so a reply can meet what
 # the caller actually said. Verbatim replies capped interactivity: judged by the eval's own judge,
 # verbatim training conversations scored 2.25/5 ("recitation rather than conversation").
 
@@ -259,35 +256,21 @@ def render(p: Passage) -> str:
     return f"{channel}\n\nTitle: {p.title}\n\n{numbered}\n\nWrite 1-2 conversations."
 
 
-def _params(model: str, p: Passage, shaped: bool = False) -> dict:
+def _params(model: str, p: Passage, shaped: bool = False) -> Request:
     qa = p.question is not None
     if shaped:
         # Written replies are longer than sentence numbers; room too for the model's own thinking.
         system, schema, max_tokens = (SYSTEM_QA_SHAPED if qa else SYSTEM_SHAPED), SCHEMA_SHAPED, 16000
     else:
         system, schema, max_tokens = (SYSTEM_QA if qa else SYSTEM), SCHEMA, 4096
-    return dict(
-        model=model,
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": render(p)}],
-        output_config={"format": {"type": "json_schema", "schema": schema}},
-    )
+    return Request(model=model, system=system, user=render(p), schema=schema, max_tokens=max_tokens)
 
 
-def _parse(message) -> dict | None:
-    if message.stop_reason != "end_turn":
-        return None
-    text = next((b.text for b in message.content if b.type == "text"), "")
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return None
-
-
-def input_sha(params: dict) -> str:
-    """Hash of what the model sees about the item (its messages, not the model or system prompt)."""
-    return hashlib.sha256(json.dumps(params["messages"], sort_keys=True).encode()).hexdigest()[:16]
+def input_sha(req: Request) -> str:
+    """Hash of what the model sees about the item (its message, not the model or system prompt).
+    Hashed in the chat-message form it has always had, so results stored earlier stay current."""
+    messages = [{"role": "user", "content": req.user}]
+    return hashlib.sha256(json.dumps(messages, sort_keys=True).encode()).hexdigest()[:16]
 
 
 def _current(row: dict, sha: str | None) -> bool:
@@ -337,11 +320,10 @@ class _Usage:
     def __init__(self):
         self.requests = self.input = self.output = 0
 
-    def add(self, message) -> None:
-        u = getattr(message, "usage", None)
+    def add(self, reply: Reply) -> None:
         self.requests += 1
-        self.input += getattr(u, "input_tokens", 0) or 0
-        self.output += getattr(u, "output_tokens", 0) or 0
+        self.input += reply.input_tokens
+        self.output += reply.output_tokens
 
     def log(self, what: str) -> None:
         if self.requests:
@@ -350,60 +332,52 @@ class _Usage:
                      self.output / self.requests)
 
 
-def run_sync(client: anthropic.Anthropic, items: list[tuple[str, dict]], store: SynthStore,
-             workers: int = 8) -> int:
-    """Concurrent requests for (id, params) items not yet in the store. Returns results stored."""
+def run_sync(backend: Backend, items: list[tuple[str, Request]], store: SynthStore, workers: int = 8) -> int:
+    """Concurrent requests for (id, request) items not yet in the store. Returns results stored."""
     n, usage = 0, _Usage()
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(client.messages.create, **params): (item_id, params)
-                   for item_id, params in store.todo(items)}
+        futures = {pool.submit(backend.complete, req): (item_id, req) for item_id, req in store.todo(items)}
         for fut in as_completed(futures):
-            item_id, params = futures[fut]
-            message = fut.result()
-            usage.add(message)
-            if (out := _parse(message)) is not None:
-                store.append(item_id, out, input_sha(params))  # appended here, on one thread
+            item_id, req = futures[fut]
+            reply = fut.result()
+            usage.add(reply)
+            if reply.data is not None:
+                store.append(item_id, reply.data, input_sha(req))  # appended here, on one thread
                 n += 1
     usage.log("sync")
     return n
 
 
-def run_batch(client: anthropic.Anthropic, items: list[tuple[str, dict]], store: SynthStore,
-              poll_s: int = 60, max_per_batch: int = 50_000) -> int:
-    """Submit (or resume) batches for (id, params) items not yet stored, wait, store results."""
+def run_batch(backend: Backend, items: list[tuple[str, Request]], store: SynthStore,
+              poll_s: int = 60, max_per_batch: int | None = None) -> int:
+    """Submit (or resume) batches for (id, request) items not yet stored, wait, store results."""
     pending = store.pending_batches()
     if not pending:
         todo = store.todo(items)
-        for k in range(0, len(todo), max_per_batch):
-            part = todo[k : k + max_per_batch]
-            batch = client.messages.batches.create(requests=[
-                Request(custom_id=f"p{j}", params=MessageCreateParamsNonStreaming(**params))
-                for j, (_, params) in enumerate(part, start=k)
-            ])
-            pending.append(batch.id)
-            log.info("submitted batch %s (%d requests)", batch.id, len(part))
+        step = max_per_batch or backend.max_per_batch
+        for k in range(0, len(todo), step):
+            part = todo[k : k + step]
+            batch_id = backend.submit([(f"p{j}", req) for j, (_, req) in enumerate(part, start=k)])
+            pending.append(batch_id)
+            log.info("submitted batch %s (%d requests)", batch_id, len(part))
         store.set_pending_batches(pending)
         # custom_id -> [item id, input hash] (custom ids must be short)
-        store.idmap.write_text(json.dumps({f"p{j}": [i, input_sha(params)] for j, (i, params) in enumerate(todo)}))
+        store.idmap.write_text(json.dumps({f"p{j}": [i, input_sha(req)] for j, (i, req) in enumerate(todo)}))
 
     idmap = json.loads(store.idmap.read_text()) if store.idmap.exists() else {}
     stored, usage = 0, _Usage()
     for batch_id in list(pending):
-        while (b := client.messages.batches.retrieve(batch_id)).processing_status != "ended":
-            c = b.request_counts
-            finished = c.succeeded + c.errored + c.canceled + c.expired
-            total = finished + c.processing
-            log.info("batch %s: %s, %d/%d done (%.0f%%; succeeded=%d errored=%d)", batch_id, b.processing_status,
-                     finished, total, 100 * finished / max(total, 1), c.succeeded, c.errored)
+        while not (st := backend.status(batch_id)).ended:
+            log.info("batch %s: %d/%d done (%.0f%%; succeeded=%d errored=%d)", batch_id, st.done, st.total,
+                     100 * st.done / max(st.total, 1), st.succeeded, st.errored)
             time.sleep(poll_s)
-        for result in client.messages.batches.results(batch_id):
-            if result.result.type != "succeeded":
+        for custom_id, reply in backend.results(batch_id):
+            if reply is None:
                 continue
-            usage.add(result.result.message)
-            out = _parse(result.result.message)
-            if out is not None and result.custom_id in idmap:
-                item_id, sha = idmap[result.custom_id]
-                store.append(item_id, out, sha)
+            usage.add(reply)
+            if reply.data is not None and custom_id in idmap:
+                item_id, sha = idmap[custom_id]
+                store.append(item_id, reply.data, sha)
                 stored += 1
         pending.remove(batch_id)
         store.set_pending_batches(pending)
@@ -411,10 +385,10 @@ def run_batch(client: anthropic.Anthropic, items: list[tuple[str, dict]], store:
     return stored
 
 
-def synth_sync(client: anthropic.Anthropic, model: str, passages: list[Passage], store: SynthStore) -> int:
-    return run_sync(client, [(p.id, _params(model, p)) for p in passages], store)
+def synth_sync(backend: Backend, model: str, passages: list[Passage], store: SynthStore) -> int:
+    return run_sync(backend, [(p.id, _params(model, p)) for p in passages], store)
 
 
-def synth_batch(client: anthropic.Anthropic, model: str, passages: list[Passage], store: SynthStore,
-                poll_s: int = 60, max_per_batch: int = 50_000) -> int:
-    return run_batch(client, [(p.id, _params(model, p)) for p in passages], store, poll_s, max_per_batch)
+def synth_batch(backend: Backend, model: str, passages: list[Passage], store: SynthStore,
+                poll_s: int = 60, max_per_batch: int | None = None) -> int:
+    return run_batch(backend, [(p.id, _params(model, p)) for p in passages], store, poll_s, max_per_batch)

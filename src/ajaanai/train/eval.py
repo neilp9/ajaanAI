@@ -1,12 +1,12 @@
-"""Compare model "arms" on whole held-out conversations, judged by an LLM (Claude by default).
+"""Compare model "arms" on whole held-out conversations, judged by an LLM.
 
 An arm is any OpenAI-compatible endpoint — usually the deployed proxy (fine-tune + RAG), the proxy
 with RAG off, or the raw base model — so the same eval works whatever LLM is behind it.
 
 Each eval item is a held-out conversation opening (eval_questions.jsonl: the real first caller line,
-the reference passage and the channel). The arm answers; then Claude plays the caller, responding
-to what the arm actually said (follow-ups, doubts, answers to its questions), for up to `turns`
-exchanges. Replaying the dataset's scripted caller lines wouldn't work: they answer his original
+the reference passage and the channel). The arm answers; then an LLM (EVAL_CALLER_MODEL) plays the
+caller, responding to what the arm actually said (follow-ups, doubts, answers to its questions), for
+up to `turns` exchanges. Replaying the dataset's scripted caller lines wouldn't work: they answer his original
 sentences, not the arm's.
 
 The judge scores the whole transcript 1-5 for *style* (sounds like him), *fidelity* (consistent with
@@ -14,10 +14,10 @@ the reference, no invented doctrine), *brevity* (one point at a time, no lecturi
 *interactivity* (responds to what was just said, builds on earlier turns, hands the conversation
 back). Reply length, questions back and markdown use are also measured directly.
 
-Judges are configurable (JUDGE_MODEL, `--judge`): a Claude model, or any OpenAI-compatible chat API
-("openai:<model>"). Several judges can score the same transcripts; a judge from another model family
-checks whether Claude favours Claude-like replies. `rejudge` re-scores saved transcripts and reports
-how the judges agree.
+Judges are configurable (JUDGE_MODEL, `--judge`): "anthropic:<model>" or "openai:<model>" (any
+OpenAI-compatible chat API). Several judges can score the same transcripts; judges from different
+model families check whether a judge favours replies that sound like its own family's. `rejudge`
+re-scores saved transcripts and reports how the judges agree.
 """
 
 from __future__ import annotations
@@ -32,8 +32,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-import anthropic
 import httpx
+
+from ..llm import Backend, ModelSpec, Request
 
 CHANNEL_NAMES = {"voice": "voice call", "text": "text chat"}
 
@@ -118,23 +119,15 @@ def transcript(messages: list[dict]) -> str:
     return "\n\n".join(f"{'Person' if m['role'] == 'user' else 'AI'}: {m['content']}" for m in messages)
 
 
-def _json_reply(msg) -> dict | None:
-    if msg.stop_reason != "end_turn":
-        return None
-    text = next((b.text for b in msg.content if b.type == "text"), "")
-    return json.loads(text)
-
-
-def caller_line(client: anthropic.Anthropic, model: str, messages: list[dict], channel: str) -> str | None:
+def caller_line(backend: Backend, model: str, messages: list[dict], channel: str) -> str | None:
     """The simulated caller's next line, or None when they'd end the conversation."""
-    msg = client.messages.create(
+    out = backend.complete(Request(
         model=model,
-        max_tokens=1024,
         system=CALLER_SYSTEM.format(channel=CHANNEL_NAMES[channel], style=CALLER_STYLE[channel]),
-        messages=[{"role": "user", "content": f"Transcript so far:\n\n{transcript(messages)}\n\nYour next line?"}],
-        output_config={"format": {"type": "json_schema", "schema": CALLER_SCHEMA}},
-    )
-    out = _json_reply(msg)
+        user=f"Transcript so far:\n\n{transcript(messages)}\n\nYour next line?",
+        schema=CALLER_SCHEMA,
+        max_tokens=1024,
+    )).data
     if out is None or out["end"] or not out["line"].strip():
         return None
     return out["line"].strip()
@@ -158,83 +151,14 @@ def judge_prompt(q: dict, messages: list[dict]) -> str:
             f"Reference passage:\n{q['reference']}\n\nTranscript:\n\n{transcript(messages)}")
 
 
-# Current Claude models that take effort and the server-side refusal fallback; others get a plain call.
-_CLAUDE_EXTRAS = ("claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5")
+def judge(backend: Backend, model: str, q: dict, messages: list[dict]) -> dict | None:
+    return backend.complete(Request(model=model, system=JUDGE_SYSTEM, user=judge_prompt(q, messages), schema=SCHEMA,
+                                    max_tokens=16000, effort="medium", fallback=True)).data
 
 
-def judge(client: anthropic.Anthropic, model: str, q: dict, messages: list[dict]) -> dict | None:
-    extras = dict(output_config={"effort": "medium", "format": {"type": "json_schema", "schema": SCHEMA}},
-                  betas=["server-side-fallback-2026-07-01"], fallbacks="default") if model in _CLAUDE_EXTRAS \
-        else dict(output_config={"format": {"type": "json_schema", "schema": SCHEMA}})
-    msg = client.beta.messages.create(
-        model=model,
-        max_tokens=16000,
-        system=JUDGE_SYSTEM,
-        messages=[{"role": "user", "content": judge_prompt(q, messages)}],
-        **extras,
-    )
-    return _json_reply(msg)
-
-
-def judge_openai(base_url: str, api_key: str | None, model: str, q: dict, messages: list[dict],
-                 attempts: int = 4) -> dict | None:
-    """The same grading through an OpenAI-compatible chat-completions API, with strict JSON output."""
-    body = {
-        "model": model,
-        "messages": [{"role": "system", "content": JUDGE_SYSTEM}, {"role": "user", "content": judge_prompt(q, messages)}],
-        "response_format": {"type": "json_schema", "json_schema": {"name": "grades", "strict": True, "schema": SCHEMA}},
-    }
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    for attempt in range(attempts):
-        try:
-            r = httpx.post(base_url.rstrip("/") + "/chat/completions", headers=headers, json=body, timeout=600)
-            if r.status_code != 429 and r.status_code < 500:
-                break
-        except httpx.TransportError:
-            if attempt == attempts - 1:
-                raise
-        time.sleep(2 ** attempt * 5)
-    r.raise_for_status()
-    msg = r.json()["choices"][0]["message"]
-    if msg.get("refusal") or not msg.get("content"):
-        return None
-    return json.loads(msg["content"])
-
-
-@dataclass
-class Judge:
-    """`claude-opus-5-5` / `anthropic:<model>`, or `openai:<model>` for an OpenAI-compatible API."""
-    provider: str
-    model: str
-
-    @classmethod
-    def parse(cls, spec: str) -> "Judge":
-        provider, sep, model = spec.strip().partition(":")
-        if not sep:
-            return cls("anthropic", spec.strip())
-        if provider not in ("anthropic", "openai") or not model:
-            raise ValueError(f"Judge {spec!r}: use a Claude model, anthropic:<model> or openai:<model>")
-        return cls(provider, model)
-
-    @classmethod
-    def parse_list(cls, specs: str | list[str]) -> list["Judge"]:
-        items = specs.split(",") if isinstance(specs, str) else [x for s in specs for x in s.split(",")]
-        return [cls.parse(x) for x in items if x.strip()]
-
-    @property
-    def name(self) -> str:
-        return f"{self.provider}:{self.model}"
-
-
-def grader(j: Judge, *, anthropic_key: str | None = None, base_url: str = "https://api.openai.com/v1",
-           api_key: str | None = None) -> Callable[[dict, list[dict]], dict | None]:
+def grader(spec: ModelSpec, backend: Backend) -> Callable[[dict, list[dict]], dict | None]:
     """A function (eval item, transcript) -> scores for one judge."""
-    if j.provider == "anthropic":
-        client = anthropic.Anthropic(api_key=anthropic_key) if anthropic_key else anthropic.Anthropic()
-        return lambda q, messages: judge(client, j.model, q, messages)
-    if not api_key and "api.openai.com" in base_url:
-        raise SystemExit(f"Judge {j.name} needs JUDGE_API_KEY or OPENAI_API_KEY")
-    return lambda q, messages: judge_openai(base_url, api_key, j.model, q, messages)
+    return lambda q, messages: judge(backend, spec.model, q, messages)
 
 
 def score_all(graders: dict[str, Callable], q: dict, messages: list[dict]) -> dict:
@@ -301,20 +225,19 @@ def agreement(rows: list[dict], a: str, b: str) -> dict:
     return out
 
 
-def run_eval(questions_path: Path, arms: list[Arm], graders: dict[str, Callable], caller_model: str,
-             anthropic_key: str, n: int = 50, turns: int = 4, out_dir: Path | None = None) -> dict:
+def run_eval(questions_path: Path, arms: list[Arm], graders: dict[str, Callable], caller: Backend,
+             caller_model: str, n: int = 50, turns: int = 4, out_dir: Path | None = None) -> dict:
     """`graders`: judge name -> grader(); the first is the headline judge. Returns
     {arm: summary}, where each summary also carries `by_judge` when there's more than one judge."""
     qs = [json.loads(line) for line in questions_path.open()]
     random.Random(0).shuffle(qs)
     qs = qs[:n]
-    client = anthropic.Anthropic(api_key=anthropic_key)
 
     def one(args):
         arm, q = args
         row = {"arm": arm.name, "question": q["question"], "channel": q.get("channel", "voice")}
         try:
-            messages = converse(arm, q, turns, lambda m, ch: caller_line(client, caller_model, m, ch))
+            messages = converse(arm, q, turns, lambda m, ch: caller_line(caller, caller_model, m, ch))
             row.update(conversation=messages, **reply_stats(messages))
         except Exception as e:
             return {**row, "error": str(e)}

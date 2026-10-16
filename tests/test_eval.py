@@ -59,46 +59,36 @@ def test_markdown_catches_italics_but_not_plain_text():
     assert not _MARKDOWN.search("Breathe in. 3 x 4 = 12, and that's fine. Use a * if you must")
 
 
-def test_judge_specs():
-    import pytest
-
-    from ajaanai.train.eval import Judge
-
-    assert Judge.parse("claude-opus-5-5") == Judge("anthropic", "claude-opus-5-5")
-    assert Judge.parse(" openai:some-model ").name == "openai:some-model"
-    assert [j.name for j in Judge.parse_list("claude-opus-5-5, openai:m")] == ["anthropic:claude-opus-5-5", "openai:m"]
-    assert [j.name for j in Judge.parse_list(["a", "openai:b,openai:c"])] == ["anthropic:a", "openai:b", "openai:c"]
-    with pytest.raises(ValueError):
-        Judge.parse("gemini:x")
-
-
 GRADES = {"style": 4, "fidelity": 5, "brevity": 3, "interactivity": 2, "note": "ok"}
 
 
-def test_openai_judge_sends_strict_schema_and_retries(monkeypatch):
-    import json as _json
-    from types import SimpleNamespace as NS
+class RecordingBackend:
+    def __init__(self, data):
+        self.data, self.requests = data, []
 
-    from ajaanai.train import eval as ev
+    def complete(self, req):
+        from ajaanai.llm import Reply
 
-    calls = []
+        self.requests.append(req)
+        return Reply(self.data)
 
-    def post(url, headers, json, timeout):
-        calls.append((url, headers, json))
-        if len(calls) == 1:
-            return NS(status_code=429)
-        return NS(status_code=200, raise_for_status=lambda: None,
-                  json=lambda: {"choices": [{"message": {"content": _json.dumps(GRADES), "refusal": None}}]})
 
-    monkeypatch.setattr(ev.httpx, "post", post)
-    monkeypatch.setattr(ev.time, "sleep", lambda s: None)
-    q = {"reference": "ref", "channel": "text"}
-    out = ev.judge_openai("https://api.example/v1/", "k", "m", q, [{"role": "user", "content": "hi"}])
-    assert out == GRADES and len(calls) == 2
-    url, headers, body = calls[1]
-    assert url == "https://api.example/v1/chat/completions" and headers == {"Authorization": "Bearer k"}
-    assert body["response_format"]["json_schema"]["strict"] is True and body["messages"][0]["role"] == "system"
-    assert "Channel: text chat" in body["messages"][1]["content"]
+def test_judge_and_caller_go_through_any_backend():
+    from ajaanai.llm import ModelSpec
+    from ajaanai.train.eval import JUDGE_SYSTEM, SCHEMA, caller_line, grader
+
+    backend = RecordingBackend(GRADES)
+    g = grader(ModelSpec("openai", "m"), backend)
+    assert g({"reference": "ref", "channel": "text"}, [{"role": "user", "content": "hi"}]) == GRADES
+    (req,) = backend.requests
+    assert req.model == "m" and req.system == JUDGE_SYSTEM and req.schema == SCHEMA
+    assert "Channel: text chat" in req.user and req.effort == "medium"
+
+    caller = RecordingBackend({"line": " And then? ", "end": False})
+    assert caller_line(caller, "c", [{"role": "assistant", "content": "Watch."}], "voice") == "And then?"
+    assert "voice call" in caller.requests[0].system
+    assert caller_line(RecordingBackend({"line": "", "end": True}), "c", [], "voice") is None
+    assert caller_line(RecordingBackend(None), "c", [], "voice") is None
 
 
 def test_several_judges_agreement_and_rejudge():

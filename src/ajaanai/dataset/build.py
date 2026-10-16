@@ -3,9 +3,9 @@
 Each example is one conversation: the system prompt for its channel (voice call or text chat,
 see chunk.passage_channel), then alternating caller / teacher turns.
 Every teacher turn is his own sentences, kept short (1-3 sentences) unless the caller asked for
-more. The only other words on his side are optional Claude-written extras (see synth.py): a brief
+more. The only other words on his side are optional model-written extras (see synth.py): a brief
 acknowledgement before his sentences (DATASET_ACKNOWLEDGE) and a short question back after them
-(DATASET_ASK_BACK). With DATASET_REPLY_MODE=shaped, teacher turns are instead written by Claude in his
+(DATASET_ASK_BACK). With DATASET_REPLY_MODE=shaped, teacher turns are instead written by the synth model in his
 voice from the passage (`shaped=True` here); the same length and opening rules apply.
 
 Example types:
@@ -66,8 +66,8 @@ class Candidate:
     conv_id: str  # "<passage id>#c<n>"
     passage: Passage
     turns: list[dict]
-    ask_backs: list[bool]  # per teacher reply: carries a Claude-written question back
-    acknowledgements: list[bool]  # per teacher reply: opens with a Claude-written acknowledgement
+    ask_backs: list[bool]  # per teacher reply: carries a model-written question back
+    acknowledgements: list[bool]  # per teacher reply: opens with a model-written acknowledgement
 
 
 def _reply(sentences: list[str], ids: list[int], *, longer: bool, used: set[int]) -> str | None:

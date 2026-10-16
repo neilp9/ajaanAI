@@ -12,6 +12,8 @@ Runs through the same batch/sync machinery as synthesis, with its own resumable 
 
 from __future__ import annotations
 
+from ..llm import Request
+
 CHECK_SYSTEM = """You check training conversations for an AI meant to talk with people the way a \
 good teacher does: each reply responds to what the person just said.
 
@@ -35,14 +37,8 @@ def render_turns(turns: list[dict]) -> str:
     return "\n\n".join(lines) + f"\n\nLabel each of the {n} AI replies."
 
 
-def check_params(model: str, turns: list[dict]) -> dict:
-    return dict(
-        model=model,
-        max_tokens=512,
-        system=CHECK_SYSTEM,
-        messages=[{"role": "user", "content": render_turns(turns)}],
-        output_config={"format": {"type": "json_schema", "schema": CHECK_SCHEMA}},
-    )
+def check_params(model: str, turns: list[dict]) -> Request:
+    return Request(model=model, system=CHECK_SYSTEM, user=render_turns(turns), schema=CHECK_SCHEMA, max_tokens=512)
 
 
 def responsive_prefix(turns: list[dict], labels: list[bool] | None) -> tuple[list[dict], int]:

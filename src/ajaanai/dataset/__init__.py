@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import random
+import re
+from datetime import date
 from pathlib import Path
 
 from ..catalog import Catalog
@@ -15,10 +17,57 @@ from .chunk import Passage, is_qa, passages_for, qa_passages
 log = logging.getLogger(__name__)
 
 
-def dataset_dir(settings: Settings) -> Path:
-    """data/dataset (verbatim replies) or data/dataset-shaped: each reply mode keeps its own synthesis
-    results, check labels and training files, so switching modes never reuses the other's results."""
-    return settings.data_dir / ("dataset" if settings.dataset_reply_mode == "verbatim" else "dataset-shaped")
+# Layout: data/datasets/<synth label>/ holds the synthesis and check results for one reply mode and
+# synth model (switching either never reuses the other's results). Each build writes its training
+# files to a dated folder inside it, named by its dataset label, e.g.
+#   data/datasets/verbatim_anthropic-claude-sonnet-5-5/verbatim_anthropic-claude-sonnet-5-5_20261014/
+# The label is also the dataset's folder on the Modal volume (/datasets/<label>) and is recorded in
+# its card.json and in the run.json of every model trained on it.
+
+
+def _slug(s: str) -> str:
+    return re.sub(r"[^A-Za-z0-9.]+", "-", s).strip("-")
+
+
+def synth_label(settings: Settings) -> str:
+    """<reply mode>_<provider>-<synth model>, e.g. verbatim_anthropic-claude-sonnet-5-5."""
+    from ..llm import parse_spec
+
+    spec = parse_spec(settings.synth_model)
+    return f"{settings.dataset_reply_mode}_{_slug(f'{spec.provider}-{spec.model}')}"
+
+
+def synth_dir(settings: Settings) -> Path:
+    return settings.data_dir / "datasets" / synth_label(settings)
+
+
+def _build_key(label: str) -> tuple[str, int]:
+    """Sort key for <synth label>_<YYYYMMDD>[-N] (a second build on one day gets -2, ...)."""
+    m = re.search(r"_(\d{8})(?:-(\d+))?$", label)
+    return (m.group(1), int(m.group(2) or 1)) if m else ("", 0)
+
+
+def new_label(settings: Settings, today: date | None = None) -> str:
+    base = f"{synth_label(settings)}_{(today or date.today()):%Y%m%d}"
+    root, label, n = synth_dir(settings), base, 1
+    while (root / label).exists():
+        n += 1
+        label = f"{base}-{n}"
+    return label
+
+
+def dataset_dir(settings: Settings, label: str | None = None) -> Path:
+    """A built dataset's folder: the one named `label`, else the latest build for the current reply
+    mode and synth model."""
+    if label:
+        found = sorted((settings.data_dir / "datasets").glob(f"*/{label}"))
+        if not found:
+            raise SystemExit(f"No dataset {label!r} under {settings.data_dir / 'datasets'}")
+        return found[0]
+    builds = [d for d in synth_dir(settings).glob(f"{synth_label(settings)}_*") if (d / "train.jsonl").exists()]
+    if not builds:
+        raise SystemExit(f"No dataset built for {synth_label(settings)} yet: run `ajaanai build-dataset`")
+    return max(builds, key=lambda d: _build_key(d.name))
 
 
 def style_passages(cat: Catalog) -> list[Passage]:
@@ -47,12 +96,14 @@ def _sample(passages: list[Passage], n: int, qa_share: float = 0.2) -> list[Pass
 
 
 def build_dataset(cat: Catalog, settings: Settings, *, sample: int | None = None,
-                  use_batches: bool = True) -> BuildStats:
+                  use_batches: bool = True) -> tuple[BuildStats, Path]:
+    """Synthesize (resuming from stored results), check, and write the training files. Returns the
+    stats and the folder the files went to: a new labelled build, or <synth dir>/sample."""
     from ..llm import make_backend, parse_spec
     from .check import check_params
     from .synth import SynthStore, _params, input_sha, run_batch, run_sync
 
-    root = dataset_dir(settings)
+    root = synth_dir(settings)
     passages = style_passages(cat)
     log.info("%d style passages", len(passages))
     if sample:
@@ -86,16 +137,19 @@ def build_dataset(cat: Catalog, settings: Settings, *, sample: int | None = None
     # 3. Assemble the training files.
     train, evals, eval_qs, stats = build_examples(passages, synth, settings.eval_fraction, responsive=responsive,
                                                   **extras)
-    write_jsonl(root / "train.jsonl", train)
-    write_jsonl(root / "eval.jsonl", evals)
-    write_jsonl(root / "eval_questions.jsonl", eval_qs)
-    card = {"reply_mode": settings.dataset_reply_mode, "passages": len(passages), "train": stats.train, "eval": stats.eval,
+    label = f"{synth_label(settings)}_sample" if sample else new_label(settings)
+    out = root if sample else root / label
+    out.mkdir(parents=True, exist_ok=True)
+    write_jsonl(out / "train.jsonl", train)
+    write_jsonl(out / "eval.jsonl", evals)
+    write_jsonl(out / "eval_questions.jsonl", eval_qs)
+    card = {"label": label, "reply_mode": settings.dataset_reply_mode, "passages": len(passages), "train": stats.train, "eval": stats.eval,
             "by_type": stats.by_type, "by_channel": stats.by_channel, "skipped_unusable": stats.skipped_unusable,
             "assistant_turns": stats.assistant_turns, "ask_backs": stats.ask_backs,
             "acknowledgements": stats.acknowledgements, "turns_dropped": stats.turns_dropped,
             "turns_not_responsive": stats.turns_not_responsive, "synth_model": settings.synth_model,
             "check_model": settings.check_model if settings.dataset_check else None,
             "licence": "Source texts © Thanissaro Bhikkhu, CC BY-NC 4.0 (dhammatalks.org). Non-commercial use only."}
-    (root / "card.json").write_text(json.dumps(card, indent=2))
+    (out / "card.json").write_text(json.dumps(card, indent=2))
     log.info("dataset: %s", card)
-    return stats
+    return stats, out

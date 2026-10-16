@@ -64,9 +64,16 @@ To compare providers on a few talks: `ajaanai transcribe --provider deepgram --l
 ## 2. Build training data
 
 ```bash
-ajaanai build-dataset --sample 50     # quick look: data/dataset/sample/train.jsonl
+ajaanai build-dataset --sample 50     # quick look: data/datasets/<mode>_<synth model>/sample/train.jsonl
 ajaanai build-dataset                 # full run via the provider's batch API (50% cheaper, resumable)
 ```
+
+Each build gets a label, `<reply mode>_<provider>-<synth model>_<YYYYMMDD>`, e.g.
+`verbatim_anthropic-claude-sonnet-5-5_20261014`. Its training files go to
+`data/datasets/<mode>_<provider>-<synth model>/<label>/` (and `/datasets/<label>` on the Modal volume),
+next to the synthesis results every build for that reply mode and synth model reuses. `ajaanai train`
+uses the latest build unless you pass `--dataset <label>`, and records the label in the run's
+`run.json` (shown by `ajaanai runs`).
 
 An LLM (`SYNTH_MODEL`: `anthropic:<model>` or `openai:<model>`) writes the questions a caller
 might ask of each passage. It also picks which of his **own sentences** make up a short spoken answer. Every assistant turn is therefore in his words.

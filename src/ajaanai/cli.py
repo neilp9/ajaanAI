@@ -244,13 +244,13 @@ def build_dataset_cmd(
     if pull:
         _pull_catalog()
     from .catalog import open_catalog
-    from .dataset import build_dataset, dataset_dir
+    from .dataset import build_dataset
 
     s = get_settings()
-    stats = build_dataset(open_catalog(), s, sample=sample, use_batches=not no_batch)
-    typer.echo(f"train={stats.train} eval={stats.eval} by_type={stats.by_type}")
+    stats, out = build_dataset(open_catalog(), s, sample=sample, use_batches=not no_batch)
+    typer.echo(f"train={stats.train} eval={stats.eval} by_type={stats.by_type}\nDataset: {out}")
     if push and not sample:
-        _modal_volume("put", "--force", VOLUME, str(dataset_dir(s)), "/" + dataset_dir(s).name)
+        _modal_volume("put", "--force", VOLUME, str(out), f"/datasets/{out.name}")
 
 
 @app.command()
@@ -258,6 +258,8 @@ def train(
     backend: Optional[str] = typer.Option(None, help="modal | openai | together (default TRAIN_BACKEND)"),
     wait: bool = typer.Option(False, help="Wait for the Modal job"),
     max_steps: Optional[int] = typer.Option(None, help="Modal only: stop after N steps (smoke test; saves the adapter only)"),
+    dataset: Optional[str] = typer.Option(None, help="Dataset label to train on (default: the latest build for "
+                                                     "DATASET_REPLY_MODE and SYNTH_MODEL)"),
 ):
     """Fine-tune on the dataset with the chosen backend."""
     _setup_logging()
@@ -265,10 +267,11 @@ def train(
     backend = backend or s.train_backend
     from .dataset import dataset_dir
 
-    root = dataset_dir(s)  # DATASET_REPLY_MODE picks data/dataset or data/dataset-shaped
+    root = dataset_dir(s, dataset)
+    typer.echo(f"Training on dataset {root.name}")
     if backend == "modal":
         out = _run_or_spawn("finetune", wait, result="`ajaanai runs`", max_steps=max_steps,
-                            dataset_subdir=root.name)
+                            dataset_subdir=f"datasets/{root.name}")
         if out:
             typer.echo(f"Trained run {out}. Evaluate it, then: ajaanai promote {out}")
         return
@@ -324,7 +327,8 @@ def runs():
             evals = meta.get("eval_history") or []
             eval_loss = f"  eval_loss={evals[-1]['eval_loss']:.4f}" if evals else ""
             typer.echo(f"{mark} {run_id}  {kind}  loss={loss:.4f}{eval_loss}  epochs={meta.get('epochs')}  "
-                       f"rank={meta.get('rank')}  base={meta.get('base')}" if isinstance(loss, (int, float))
+                       f"rank={meta.get('rank')}  base={meta.get('base')}  dataset={meta.get('dataset', 'unrecorded')}"
+                       if isinstance(loss, (int, float))
                        else f"{mark} {run_id}  {kind}  {meta}")
     typer.echo("\n* = served (set with `ajaanai promote <run_id>`, normally after `ajaanai eval`)" if current
                else "\nNo run is being served yet: evaluate one, then `ajaanai promote <run_id>`.")
@@ -378,7 +382,7 @@ def eval_cmd(
     arm: list[str] = typer.Option(..., help="name=https://.../v1 or name=https://.../v1|model (repeatable)"),
     n: int = typer.Option(50, help="Conversations to sample"),
     turns: int = typer.Option(4, help="Replies per conversation (EVAL_CALLER_MODEL plays the caller after the real opening)"),
-    questions: Path = typer.Option(None, help="Defaults to data/dataset/eval_questions.jsonl"),
+    questions: Path = typer.Option(None, help="Defaults to the latest dataset build's eval_questions.jsonl"),
     judge: Optional[list[str]] = typer.Option(
         None, help="Judge model, repeatable: anthropic:<model> or openai:<model>. "
                    "Default JUDGE_MODEL. The first is the headline score; others are reported alongside."),
@@ -406,7 +410,7 @@ def rejudge(
     rows_file: Path = typer.Argument(..., help="A saved .rows.jsonl from `ajaanai eval`"),
     judge: list[str] = typer.Option(..., help="Judge(s) to add, as for `eval --judge`"),
     questions: Path = typer.Option(None, help="Eval questions the run used, for the reference passages "
-                                              "(default data/dataset/eval_questions.jsonl)"),
+                                              "(default: the latest dataset build's)"),
 ):
     """Score saved eval transcripts with more judges, and report how the judges agree."""
     _setup_logging()

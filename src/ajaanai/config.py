@@ -71,8 +71,8 @@ class Settings(BaseSettings):
     check_model: str = "anthropic:claude-haiku-4-5"
     # How his replies are built. verbatim: the synth model picks his sentences by number (every word his,
     # bar the extras above). shaped: it writes each reply in his voice from the passage, reusing
-    # his wording where it fits, so it can answer what the caller actually said. Each mode keeps its
-    # own results and output under data/dataset[-shaped]/.
+    # his wording where it fits, so it can answer what the caller actually said. Each reply mode and
+    # synth model keeps its own results and builds under data/datasets/ (see dataset/__init__.py).
     dataset_reply_mode: Literal["verbatim", "shaped"] = "verbatim"
 
     # --- model (swappable; see models.py) --------------------------------------

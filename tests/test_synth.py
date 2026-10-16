@@ -133,7 +133,7 @@ def test_rows_saved_before_hashing_count_as_current(tmp_path):
 
 def test_shaped_mode_has_its_own_prompt_schema_and_directory(tmp_path):
     from ajaanai.config import Settings
-    from ajaanai.dataset import dataset_dir
+    from ajaanai.dataset import synth_dir
     from ajaanai.dataset.synth import SCHEMA, SCHEMA_SHAPED, SYSTEM, SYSTEM_SHAPED
 
     p = passages()[0]
@@ -142,8 +142,35 @@ def test_shaped_mode_has_its_own_prompt_schema_and_directory(tmp_path):
     assert shaped.system == SYSTEM_SHAPED and shaped.schema == SCHEMA_SHAPED
     # same messages, so the input hash can't tell the modes apart: they must not share a store
     assert input_sha(verbatim) == input_sha(shaped)
-    assert dataset_dir(Settings(_env_file=None, data_dir=tmp_path)).name == "dataset"
-    assert dataset_dir(Settings(_env_file=None, data_dir=tmp_path, dataset_reply_mode="shaped")).name == "dataset-shaped"
+    assert synth_dir(Settings(_env_file=None, data_dir=tmp_path)).name == "verbatim_anthropic-claude-haiku-4-5"
+    assert synth_dir(Settings(_env_file=None, data_dir=tmp_path, dataset_reply_mode="shaped")).name == \
+        "shaped_anthropic-claude-haiku-4-5"
+
+
+def test_each_build_gets_a_label_and_the_latest_is_the_default(tmp_path):
+    from datetime import date
+
+    import pytest
+
+    from ajaanai.config import Settings
+    from ajaanai.dataset import dataset_dir, new_label, synth_dir
+
+    s = Settings(_env_file=None, data_dir=tmp_path, synth_model="openai:org/gpt-x")
+    assert synth_dir(s) == tmp_path / "datasets" / "verbatim_openai-org-gpt-x"
+    with pytest.raises(SystemExit, match="No dataset built"):
+        dataset_dir(s)
+    for day in (date(2026, 10, 9), date(2026, 10, 14), date(2026, 10, 14)):
+        d = synth_dir(s) / new_label(s, day)
+        d.mkdir(parents=True)
+        (d / "train.jsonl").write_text("")
+    builds = sorted(p.name for p in synth_dir(s).iterdir())
+    assert builds == ["verbatim_openai-org-gpt-x_20261009", "verbatim_openai-org-gpt-x_20261014",
+                      "verbatim_openai-org-gpt-x_20261014-2"]
+    (synth_dir(s) / "sample").mkdir()  # samples are never picked as a build
+    assert dataset_dir(s).name == "verbatim_openai-org-gpt-x_20261014-2"
+    assert dataset_dir(s, "verbatim_openai-org-gpt-x_20261009") == synth_dir(s) / "verbatim_openai-org-gpt-x_20261009"
+    with pytest.raises(SystemExit, match="No dataset"):
+        dataset_dir(s, "nope")
 
 
 def test_input_hash_is_unchanged_from_the_chat_message_form(tmp_path):

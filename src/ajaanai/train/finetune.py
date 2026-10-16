@@ -43,7 +43,7 @@ def to_text(batch: dict, tokenizer) -> dict:
 def run_finetune(profile: ModelProfile, train_path: Path, eval_path: Path, models_dir: Path, *,
                  rank: int = 32, epochs: int = 2, max_seq_len: int = 4096, lr: float = 1e-4,
                  max_steps: int | None = None, hf_token: str | None = None,
-                 push_repo: str | None = None) -> Path:
+                 push_repo: str | None = None, dataset: str | None = None) -> Path:
     from datasets import load_dataset
     from trl import SFTConfig, SFTTrainer
 
@@ -121,7 +121,7 @@ def run_finetune(profile: ModelProfile, train_path: Path, eval_path: Path, model
             model.push_to_hub_merged(push_repo, tokenizer, save_method="merged_16bit", token=hf_token)
 
     (out / "run.json").write_text(json.dumps({
-        "run_id": run_id, "profile": profile.name, "base": profile.hf_id, "rank": rank, "epochs": epochs,
+        "run_id": run_id, "dataset": dataset, "profile": profile.name, "base": profile.hf_id, "rank": rank, "epochs": epochs,
         "lr": lr, "train_loss": result.training_loss, "push_repo": push_repo, "smoke": smoke,
         "max_steps": max_steps, "loss_on": "whole conversations" if whole else "per-turn examples",
         "eval_history": [h for h in trainer.state.log_history if "eval_loss" in h],

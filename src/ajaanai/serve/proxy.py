@@ -321,7 +321,8 @@ def sse_chunk(cid: str, model: str, delta: Delta, first: bool = False) -> str:
 
 
 def create_app(cfg: ProxyConfig, retrieve: Callable[[str], str | None] | None = None,
-               on_warm: Callable[[], None] | None = None):
+               on_warm: Callable[[], None] | None = None, serving: str | None = None):
+    """`serving` names the weights behind the endpoint (e.g. the promoted run); /health reports it."""
     app = FastAPI(title="ajaanAI proxy")
     client = httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0))
 
@@ -331,7 +332,7 @@ def create_app(cfg: ProxyConfig, retrieve: Callable[[str], str | None] | None = 
 
     @app.get("/health")
     async def health():
-        return {"ok": True}
+        return {"ok": True, **({"serving": serving} if serving else {})}
 
     @app.api_route("/warm", methods=["GET", "POST"])
     async def warm():

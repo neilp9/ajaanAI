@@ -16,6 +16,9 @@ ThinkingStyle = Literal[
     "always",              # model always reasons (we can only strip it)
 ]
 
+QWEN_MARKERS = ("<|im_start|>user\n", "<|im_start|>assistant\n")
+LLAMA3_MARKERS = ("<|start_header_id|>user<|end_header_id|>\n\n", "<|start_header_id|>assistant<|end_header_id|>\n\n")
+
 _STD_LORA_TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 
 
@@ -35,6 +38,10 @@ class ModelProfile:
     vllm_extra_args: list[str] = field(default_factory=list)
     vllm_reasoning_parser: str | None = None  # splits reasoning into `reasoning_content`
     vllm_tool_parser: str | None = None  # lets the voice platform's tools (e.g. end_call) work
+    # Chat-template text that opens a user turn and an assistant turn. With these, training sees each
+    # conversation once and learns only from the assistant turns; without them (e.g. "generic"),
+    # each assistant turn becomes its own example — same result, several times the compute.
+    turn_markers: tuple[str, str] | None = None
     notes: str = ""
 
     def vllm_args(self, model_path: str, served_name: str, port: int, *, sleep_mode: bool = False,
@@ -71,26 +78,29 @@ PROFILES: dict[str, ModelProfile] = {
     for p in [
         ModelProfile(
             name="qwen3.5-27b", hf_id="Qwen/Qwen3.5-27B", thinking="template_kwarg", vllm_reasoning_parser="qwen3", vllm_tool_parser="hermes",
+            turn_markers=QWEN_MARKERS,
             train_gpu="H100", serve_gpu="L40S", serve_quantization="fp8",
             notes="Default. Dense 27B, Apache 2.0. Hybrid Gated-DeltaNet: needs recent vLLM/Unsloth.",
         ),
         ModelProfile(
             name="qwen3.5-9b", hf_id="Qwen/Qwen3.5-9B", thinking="template_kwarg", vllm_reasoning_parser="qwen3", vllm_tool_parser="hermes",
+            turn_markers=QWEN_MARKERS,
             train_gpu="L40S", serve_gpu="L4", serve_quantization="fp8",
             notes="Cheaper/faster; fits a 24GB GPU in FP8.",
         ),
         ModelProfile(
             name="qwen3-32b", hf_id="Qwen/Qwen3-32B", thinking="template_kwarg", vllm_reasoning_parser="qwen3", vllm_tool_parser="hermes",
+            turn_markers=QWEN_MARKERS,
             train_gpu="H100", serve_gpu="L40S", serve_quantization="fp8",
             notes="Fallback if Qwen3.5 tooling lags.",
         ),
         ModelProfile(
-            name="llama-3.1-8b", hf_id="meta-llama/Llama-3.1-8B-Instruct", thinking="none", vllm_tool_parser="llama3_json",
+            name="llama-3.1-8b", hf_id="meta-llama/Llama-3.1-8B-Instruct", thinking="none", vllm_tool_parser="llama3_json", turn_markers=LLAMA3_MARKERS,
             train_gpu="L40S", serve_gpu="L4", serve_quantization="fp8",
             notes="Llama community licence (gated on HF).",
         ),
         ModelProfile(
-            name="llama-3.3-70b", hf_id="meta-llama/Llama-3.3-70B-Instruct", thinking="none", vllm_tool_parser="llama3_json",
+            name="llama-3.3-70b", hf_id="meta-llama/Llama-3.3-70B-Instruct", thinking="none", vllm_tool_parser="llama3_json", turn_markers=LLAMA3_MARKERS,
             train_gpu="H100:2", serve_gpu="H100", serve_quantization="fp8",
         ),
         ModelProfile(

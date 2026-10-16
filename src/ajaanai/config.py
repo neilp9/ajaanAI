@@ -8,14 +8,17 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 TranscribeProvider = Literal["elevenlabs", "openai", "deepgram", "assemblyai", "modal_whisper"]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # env_ignore_empty: a blank `KEY=` in .env (or the Modal secret) means unset, not "" — an empty
+    # HF_TOKEN would otherwise be sent as a blank credential and break public model downloads.
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore",
+                                      env_ignore_empty=True)
 
     # --- storage -------------------------------------------------------------
     data_dir: Path = Path("data")  # set to /data on Modal (the mounted volume)
@@ -46,13 +49,35 @@ class Settings(BaseSettings):
     twilio_auth_token: str | None = None
     endpoint_bearer_secret: str | None = None
 
-    # --- dataset synthesis -----------------------------------------------------
-    synth_model: str = "claude-haiku-4-5"  # writes the training conversations (Batches API at 50% cost)
-    judge_model: str = "claude-opus-5-5"  # eval judge
+    # --- dataset synthesis & eval LLMs --------------------------------------------
+    # Every model here is "<provider>:<model>", provider = anthropic | openai (see llm.py). openai means
+    # any OpenAI-compatible chat API at OPENAI_BASE_URL, with OPENAI_API_KEY. Both providers' batch
+    # APIs are used for full dataset runs (50% cost).
+    openai_base_url: str = "https://api.openai.com/v1"
+    synth_model: str = "anthropic:claude-haiku-4-5"  # writes the training conversations
+    # Reasoning effort for the synth model: OpenAI reasoning models (gpt-5.x, gpt-6.x, o-series) and the
+    # Claude models that take one; ignored by others. Unset: the model's own default. Not part of the
+    # input hash, so changing it doesn't redo stored results (move them aside to compare).
+    synth_effort: Literal["low", "medium", "high"] | None = None
+    # Eval judge(s), comma-separated. The first judge's scores are the headline; others are reported
+    # alongside.
+    judge_model: str = "anthropic:claude-opus-5-5"
+    eval_caller_model: str = "anthropic:claude-sonnet-5-5"  # plays the caller in eval conversations
     eval_fraction: float = 0.02
-    # Keep the short questions back to the caller that Claude adds to some of his turns (the only
+    # Keep the short questions back to the caller that the synth model adds to some of his turns (the only
     # assistant words that aren't his). False rebuilds the dataset without them; no re-synthesis.
     dataset_ask_back: bool = True
+    # Same for the brief acknowledgements the synth model may put before his sentences ("Planning, yes.").
+    dataset_acknowledge: bool = True
+    # Label every reply for whether it answers the caller's line (CHECK_MODEL) and cut each
+    # conversation at its first unresponsive reply. Runs after synthesis; resumable like it.
+    dataset_check: bool = True
+    check_model: str = "anthropic:claude-haiku-4-5"
+    # How his replies are built. verbatim: the synth model picks his sentences by number (every word his,
+    # bar the extras above). shaped: it writes each reply in his voice from the passage, reusing
+    # his wording where it fits, so it can answer what the caller actually said. Each reply mode and
+    # synth model keeps its own results and builds under data/datasets/ (see dataset/__init__.py).
+    dataset_reply_mode: Literal["verbatim", "shaped"] = "verbatim"
 
     # --- model (swappable; see models.py) --------------------------------------
     model_profile: str = "qwen3.5-27b"  # key in models.PROFILES, or "generic"
@@ -90,7 +115,10 @@ class Settings(BaseSettings):
     max_answer_tokens: int = 400  # phone answers should be short
 
     # --- reasoning & pauses ------------------------------------------------------
-    reasoning_mode: Literal["off", "on", "auto"] = "auto"
+    # off by default: the fine-tune is trained on his replies with no reasoning, answers are 1-3
+    # sentences, and on Qwen3.5 "auto" thought past the whole budget on ordinary practice questions
+    # (67 s, finish=length, empty reply). Turn on only for a model/budget you've checked.
+    reasoning_mode: Literal["off", "on", "auto"] = "off"
     reasoning_budget_tokens: int = 1024
     filler_mode: Literal["off", "when_thinking", "always"] = "when_thinking"
     filler_interval_s: float = 4.0
@@ -107,6 +135,14 @@ class Settings(BaseSettings):
     agent_max_call_s: int = 1800
     twilio_phone_number: str | None = None  # E.164, e.g. +14155550123
     consent_file: Path = Path("CONSENT.md")
+
+    @field_validator("synth_model", "check_model", "eval_caller_model", "judge_model")
+    @classmethod
+    def _model_specs(cls, v: str) -> str:
+        from .llm import parse_specs
+
+        parse_specs(v)  # raises on a model without its provider
+        return v
 
     @property
     def catalog_path(self) -> Path:

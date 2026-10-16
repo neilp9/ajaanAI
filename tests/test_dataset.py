@@ -27,8 +27,9 @@ def talk_passage():
     return passages_for(doc)
 
 
-def ex(caller, sentences, ask_back="", longer=False):
-    return {"caller": caller, "sentences": sentences, "longer": longer, "ask_back": ask_back}
+def ex(caller, sentences, ask_back="", longer=False, acknowledge=""):
+    return {"caller": caller, "sentences": sentences, "longer": longer, "acknowledge": acknowledge,
+            "ask_back": ask_back}
 
 
 def test_conversation_is_multi_turn_and_only_his_sentences():
@@ -52,31 +53,32 @@ def test_bad_turn_ends_the_conversation_before_it():
     ps = talk_passage()
     s = split_sentences(ps[0].text)
     convo = {"exchanges": [ex("Q1", [0]), ex("Q2", [0, 1]), ex("Q3", [2])]}  # turn 2 reuses sentence 0
-    turns, _, dropped = conversation_turns(ps[0], convo)
+    turns, _, _, dropped = conversation_turns(ps[0], convo)
     assert [m["content"] for m in turns] == ["Q1", s[0]] and dropped == 2
     too_long = {"exchanges": [ex("Q1", [0, 1, 2, 3, 4])]}  # 5 sentences without `longer`
     assert conversation_turns(ps[0], too_long)[0] == []
     assert conversation_turns(ps[0], {"exchanges": [ex("Q1", [0, 1, 2, 3, 4], longer=True)]})[0]
 
 
-def test_first_reply_must_stand_alone_but_later_ones_may_lean_back():
+def test_every_reply_must_stand_alone():
     doc = Doc(id="d3", source="evening", kind="talk", title="T", page_url="/x",
               text="So that's why it matters. The breath is home. Because it's always here. “Evil is done by oneself.”")
     p = passages_for(doc)[0]
     assert conversation_turns(p, {"exchanges": [ex("Q", [0])]})[0] == []
     assert conversation_turns(p, {"exchanges": [ex("Q", [2])]})[0] == []
     assert conversation_turns(p, {"exchanges": [ex("Q", [3])]})[0] == []  # a quotation, not his words
-    turns, _, _ = conversation_turns(p, {"exchanges": [ex("Q", [1]), ex("Why?", [2])]})
-    assert turns[-1]["content"] == "Because it's always here."
+    # a later reply that only continues the previous one ends the call there
+    turns, _, _, dropped = conversation_turns(p, {"exchanges": [ex("Q", [1]), ex("Why?", [2])]})
+    assert [m["content"] for m in turns] == ["Q", "The breath is home."] and dropped == 1
 
 
 def test_ask_back_can_be_left_out_without_breaking_the_call():
     ps = talk_passage()
     convo = {"exchanges": [ex("Q1", [0], ask_back="What do you notice?"), ex("Tension.", [1])]}
-    with_q, n, _ = conversation_turns(ps[0], convo)
-    assert len(with_q) == 4 and n == 1
-    without, n, dropped = conversation_turns(ps[0], convo, ask_back=False)
-    assert len(without) == 2 and n == 0 and dropped == 1 and "?" not in without[1]["content"]
+    with_q, asks, _, _ = conversation_turns(ps[0], convo)
+    assert len(with_q) == 4 and asks == [True, False]
+    without, asks, _, dropped = conversation_turns(ps[0], convo, ask_back=False)
+    assert len(without) == 2 and asks == [False] and dropped == 1 and "?" not in without[1]["content"]
     rambling = {"exchanges": [ex("Q1", [0], ask_back="And " * 20 + "you?"), ex("Q2", [1])]}
     assert len(conversation_turns(ps[0], rambling)[0]) == 2  # over-long ask-back: call ends there
 
@@ -129,3 +131,82 @@ def test_channels_split_and_prompted_per_passage():
         assert row["messages"][0]["content"].startswith(system_prompt(passage_channel(p)))
     assert stats.by_channel == {"text": channels.count("text"), "voice": channels.count("voice")}
     assert "text chat" in system_prompt("text") and "phone call" in system_prompt("voice")
+
+
+def test_finetune_renders_whole_conversations_for_profiles_with_turn_markers():
+    from ajaanai.models import PROFILES
+    from ajaanai.train.finetune import to_text
+
+    class Tok:
+        def apply_chat_template(self, msgs, tokenize):
+            assert tokenize is False
+            return "|".join(f"{m['role']}:{m['content']}" for m in msgs)
+
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "q1"}, {"role": "assistant", "content": "a1"}]
+    assert to_text({"messages": [msgs]}, Tok()) == {"text": ["system:s|user:q1|assistant:a1"]}
+    assert all(p.turn_markers for name, p in PROFILES.items() if name != "generic")
+    assert PROFILES["generic"].turn_markers is None  # falls back to one example per teacher turn
+
+
+def test_acknowledgements_are_kept_apart_and_optional():
+    ps = talk_passage()
+    s = split_sentences(ps[0].text)
+    convo = {"exchanges": [ex("Q1", [0]), ex("Mostly planning.", [1], acknowledge="Planning, yes")]}
+    turns, _, acks, _ = conversation_turns(ps[0], convo)
+    assert turns[3]["content"] == f"Planning, yes. {s[1]}" and acks == [False, True]
+    off, _, acks, dropped = conversation_turns(ps[0], convo, acknowledge=False)
+    assert off[3]["content"] == s[1] and acks == [False, False] and dropped == 0  # nothing depends on it
+    too_long = {"exchanges": [ex("Q1", [0], acknowledge="That is such a wonderful and very insightful point")]}
+    assert conversation_turns(ps[0], too_long)[0][1]["content"] == s[0]  # malformed: dropped, reply kept
+    question = {"exchanges": [ex("Q1", [0], acknowledge="Really?")]}
+    assert conversation_turns(ps[0], question)[0][1]["content"] == s[0]  # questions belong in ask_back
+
+
+def test_responsiveness_check_cuts_at_first_unresponsive_reply():
+    from ajaanai.dataset.build import conversation_candidates
+    from ajaanai.dataset.check import render_turns
+
+    ps = talk_passage()
+    synth = {ps[0].id: {"usable": True, "topics": [], "conversations": [{"exchanges": [
+        ex("Q1", [0]), ex("Q2", [1], ask_back="What do you notice?"), ex("Q3", [2]), ex("Q4", [3])]}]}}
+    (cand,) = conversation_candidates(ps, synth)
+    assert cand.conv_id == f"{ps[0].id}#c0" and "Label each of the 4 AI replies." in render_turns(cand.turns)
+    train, _, _, stats = build_examples(ps, synth, 0.0, responsive={cand.conv_id: [True, True, False, True]})
+    assert [m["role"] for m in train[0]["messages"][1:]] == ["user", "assistant"] * 2
+    assert stats.turns_not_responsive == 2 and stats.ask_backs == 1 and stats.assistant_turns == 2
+    # unresponsive first reply: the whole conversation goes
+    gone, _, _, stats = build_examples(ps, synth, 0.0, responsive={cand.conv_id: [False, True, True, True]})
+    assert gone == [] and stats.turns_not_responsive == 4
+    # missing or malformed labels keep the conversation
+    kept, _, _, _ = build_examples(ps, synth, 0.0, responsive={cand.conv_id: [True]})
+    assert len(kept[0]["messages"]) == 9
+
+
+def sx(caller, reply, longer=False):
+    return {"caller": caller, "reply": reply, "sources": [0], "longer": longer}
+
+
+def test_shaped_replies_are_the_written_text():
+    ps = talk_passage()
+    synth = {ps[0].id: {"usable": True, "topics": [], "conversations": [{"exchanges": [
+        sx("How do I start?", "Start with the breath. Notice where it feels good."),
+        sx("My shoulders, mostly.", "Shoulders hold a lot. Let the breath ease them. What happens when you do?"),
+        sx("They loosen a bit.", "Good. Stay with that feeling."),
+    ]}]}}
+    train, _, _, stats = build_examples(ps, synth, eval_fraction=0.0, shaped=True)
+    msgs = train[0]["messages"]
+    assert [m["content"] for m in msgs[1:]] == [
+        "How do I start?", "Start with the breath. Notice where it feels good.",
+        "My shoulders, mostly.", "Shoulders hold a lot. Let the breath ease them. What happens when you do?",
+        "They loosen a bit.", "Good. Stay with that feeling."]
+    assert stats.assistant_turns == 3 and stats.ask_backs == 1 and stats.acknowledgements == 0
+
+
+def test_shaped_reply_rules_end_the_conversation():
+    p = talk_passage()[0]
+    ok = sx("Q1", "Plain answer here.")
+    long_reply = " ".join(["This is one sentence of the reply."] * 6)  # 6 sentences, not `longer`
+    for bad in (long_reply, "So the answer is plain.", "- first point - second point", "**Breath** first.", ""):
+        turns, _, _, dropped = conversation_turns(p, {"exchanges": [ok, sx("Q2", bad)]}, shaped=True)
+        assert [m["content"] for m in turns] == ["Q1", "Plain answer here."] and dropped == 1, bad
+    assert conversation_turns(p, {"exchanges": [sx("Q", long_reply, longer=True)]}, shaped=True)[0]

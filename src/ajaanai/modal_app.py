@@ -67,6 +67,9 @@ train_image = _finish(modal.Image.debian_slim(python_version="3.12").uv_pip_inst
 vllm_image = _finish(modal.Image.debian_slim(python_version="3.12").uv_pip_install(
     *CORE, "vllm==0.30.0", "sentence-transformers==6.1.0").env({
         "VLLM_SERVER_DEV_MODE": "1",  # exposes /sleep and /wake_up (used around the snapshot)
+        # FlashInfer's sampler JIT-compiles a kernel at warmup and needs nvcc, which this slim image
+        # lacks ("Could not find nvcc"); vLLM's native PyTorch top-k/top-p sampler needs nothing extra.
+        "VLLM_USE_FLASHINFER_SAMPLER": "0",
         "TORCHINDUCTOR_COMPILE_THREADS": "1",  # recommended by Modal for snapshot compatibility
     }))
 
@@ -170,8 +173,10 @@ def collect_job(names: list[str] | None = None, limit: int | None = None, dry_ru
                               checkpoint=checkpoint)
         finally:
             cat.close()
+    if not dry_run and any(r.stats.new or r.stats.site_transcripts or r.transcribed for r in results):
+        rag_update.spawn()
     return [{"source": r.name, "planned": r.planned[:50], "new": r.stats.new, "seen": r.stats.seen,
-             "errors": r.stats.errors[:20]} for r in results]
+             "transcribed": r.transcribed, "errors": r.stats.errors[:20]} for r in results]
 
 
 @app.function(image=base_image, volumes={DATA: volume}, secrets=[secret], timeout=12 * 3600,
@@ -232,7 +237,7 @@ def rag_update() -> int:
 
 @app.function(image=train_image, gpu=PROFILE.train_gpu, volumes={DATA: volume}, secrets=[secret],
               timeout=24 * 3600)
-def finetune(dataset_subdir: str = "dataset") -> str:
+def finetune(dataset_subdir: str, max_steps: int | None = None) -> str:
     from ajaanai.train.finetune import run_finetune
 
     volume.reload()
@@ -240,7 +245,8 @@ def finetune(dataset_subdir: str = "dataset") -> str:
     s = get_settings()
     root = s.data_dir / dataset_subdir
     out = run_finetune(active_profile(), root / "train.jsonl", root / "eval.jsonl", s.data_dir / "models",
-                       rank=s.lora_rank, epochs=s.train_epochs, hf_token=s.hf_token, push_repo=s.hf_output_repo)
+                       rank=s.lora_rank, epochs=s.train_epochs, max_steps=max_steps, hf_token=s.hf_token,
+                       push_repo=s.hf_output_repo, dataset=root.name)
     volume.commit()
     return out.name
 
@@ -286,6 +292,26 @@ def _retriever(embedder):
     return lambda q: format_hits(r(q))
 
 
+def _start_vllm(args: list[str], log_path: Path) -> subprocess.Popen:
+    """Start vLLM, copying its output both to the container log and to a file on the volume:
+    Modal only keeps the tail of container logs, which loses the root cause of a failed boot."""
+    import sys
+    import threading
+
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+
+    def pump():
+        with log_path.open("w") as f:
+            for line in proc.stdout:
+                sys.stdout.write(line)
+                f.write(line)
+                f.flush()
+
+    threading.Thread(target=pump, daemon=True).start()
+    return proc
+
+
 def _wait_vllm_healthy(proc: subprocess.Popen, timeout_s: float = 1700) -> None:
     import httpx
 
@@ -328,10 +354,17 @@ class Serve:
         s = get_settings()
         profile = active_profile()
         model = str(current_model_path(s.data_dir / "models") or profile.hf_id)
-        log.info("booting vLLM for %s (%s), snapshot=%s", model, profile.name, SNAPSHOT)
-        self.proc = subprocess.Popen(profile.vllm_args(model, SERVED_NAME, VLLM_PORT, sleep_mode=SNAPSHOT,
-                                                       max_num_seqs=s.serve_max_num_seqs))
-        _wait_vllm_healthy(self.proc)
+        self.serving = model
+        boot_log = s.data_dir / "logs" / f"vllm-boot-{time.strftime('%Y%m%d-%H%M%S')}.log"
+        log.info("booting vLLM for %s (%s), snapshot=%s; full output in %s", model, profile.name, SNAPSHOT, boot_log)
+        self.proc = _start_vllm(profile.vllm_args(model, SERVED_NAME, VLLM_PORT, sleep_mode=SNAPSHOT,
+                                                  max_num_seqs=s.serve_max_num_seqs), boot_log)
+        try:
+            _wait_vllm_healthy(self.proc)
+        except Exception:
+            time.sleep(2)  # let the output thread write vLLM's last lines
+            volume.commit()
+            raise
         if SNAPSHOT:
             # Exercise both reasoning paths so compiled kernels land in the snapshot, then sleep:
             # weights move to CPU memory and the KV cache is dropped, keeping the snapshot lean.
@@ -366,7 +399,7 @@ class Serve:
         from ajaanai.serve.proxy import create_app
 
         cfg = _proxy_config(f"http://127.0.0.1:{VLLM_PORT}/v1", SERVED_NAME, None, hosted=False)
-        return create_app(cfg, retrieve=self.retrieve)
+        return create_app(cfg, retrieve=self.retrieve, serving=self.serving)
 
     @modal.exit()
     def stop(self):

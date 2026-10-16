@@ -35,14 +35,16 @@ def _fn(name: str):
     return modal.Function.from_name(APP_NAME, name)
 
 
-def _run_or_spawn(name: str, wait: bool, **kwargs):
+def _run_or_spawn(name: str, wait: bool, result: str = "`ajaanai status`", **kwargs):
+    """Run a Modal function: block on it with `wait`, otherwise start it detached and return None."""
     fn = _fn(name)
     if wait:
         typer.echo(f"Running {name} on Modal and waiting for it to finish (progress: uv run modal app logs "
-                   f"{APP_NAME}; result in `ajaanai status`)...")
+                   f"{APP_NAME}; result in {result})...")
         return fn.remote(**kwargs)
     call = fn.spawn(**kwargs)
-    typer.echo(f"Started {name} on Modal (call {call.object_id}). Follow it with: uv run modal app logs {APP_NAME}")
+    typer.echo(f"Started {name} on Modal (call {call.object_id}). It runs on its own; you can close this terminal.\n"
+               f"Follow it with: uv run modal app logs {APP_NAME}\nWhen it's done, see: {result}")
     return None
 
 
@@ -233,36 +235,43 @@ def status(pull: bool = typer.Option(True, help="Fetch the latest catalog from M
 @app.command("build-dataset")
 def build_dataset_cmd(
     sample: Optional[int] = typer.Option(None, help="Synthesize for N random passages only (sync, quick look)"),
-    no_batch: bool = typer.Option(False, help="Use synchronous calls instead of the Batches API"),
+    no_batch: bool = typer.Option(False, help="Use synchronous calls instead of the batch API"),
     pull: bool = typer.Option(True, help="Pull the catalog from Modal first"),
     push: bool = typer.Option(True, help="Upload the dataset to the Modal volume afterwards"),
 ):
-    """Turn the catalog into chat JSONL training data (questions written by Claude, answers his words)."""
+    """Turn the catalog into chat JSONL training data (questions written by SYNTH_MODEL, answers his words)."""
     _setup_logging()
     if pull:
         _pull_catalog()
     from .catalog import open_catalog
-    from .dataset import build_dataset, dataset_dir
+    from .dataset import build_dataset
 
     s = get_settings()
-    stats = build_dataset(open_catalog(), s, sample=sample, use_batches=not no_batch)
-    typer.echo(f"train={stats.train} eval={stats.eval} by_type={stats.by_type}")
+    stats, out = build_dataset(open_catalog(), s, sample=sample, use_batches=not no_batch)
+    typer.echo(f"train={stats.train} eval={stats.eval} by_type={stats.by_type}\nDataset: {out}")
     if push and not sample:
-        _modal_volume("put", "--force", VOLUME, str(dataset_dir(s)), "/dataset")
+        _modal_volume("put", "--force", VOLUME, str(out), f"/datasets/{out.name}")
 
 
 @app.command()
 def train(
     backend: Optional[str] = typer.Option(None, help="modal | openai | together (default TRAIN_BACKEND)"),
     wait: bool = typer.Option(False, help="Wait for the Modal job"),
+    max_steps: Optional[int] = typer.Option(None, help="Modal only: stop after N steps (smoke test; saves the adapter only)"),
+    dataset: Optional[str] = typer.Option(None, help="Dataset label to train on (default: the latest build for "
+                                                     "DATASET_REPLY_MODE and SYNTH_MODEL)"),
 ):
     """Fine-tune on the dataset with the chosen backend."""
     _setup_logging()
     s = get_settings()
     backend = backend or s.train_backend
-    root = s.data_dir / "dataset"
+    from .dataset import dataset_dir
+
+    root = dataset_dir(s, dataset)
+    typer.echo(f"Training on dataset {root.name}")
     if backend == "modal":
-        out = _run_or_spawn("finetune", wait)
+        out = _run_or_spawn("finetune", wait, result="`ajaanai runs`", max_steps=max_steps,
+                            dataset_subdir=f"datasets/{root.name}")
         if out:
             typer.echo(f"Trained run {out}. Evaluate it, then: ajaanai promote {out}")
         return
@@ -284,6 +293,48 @@ def train(
 
 
 @app.command()
+def runs():
+    """Trained runs on the Modal volume: status, loss, base model, and which one is served."""
+    import modal
+    from modal.exception import NotFoundError
+    from modal.volume import FileEntryType
+
+    vol = modal.Volume.from_name(VOLUME)
+
+    def read(path: str) -> str | None:
+        try:
+            return b"".join(vol.read_file(path)).decode()
+        except FileNotFoundError:
+            return None
+
+    try:
+        run_ids = sorted(e.path.rsplit("/", 1)[-1] for e in vol.listdir("/models") if e.type == FileEntryType.DIRECTORY)
+    except NotFoundError:
+        run_ids = []
+    if not run_ids:
+        typer.echo("No trained runs yet. Start one with: uv run ajaanai train")
+        return
+    current = (read("/models/CURRENT") or "").strip()
+    for run_id in run_ids:
+        meta = json.loads(read(f"/models/{run_id}/run.json") or "null")
+        mark = "*" if run_id == current else " "
+        if meta is None:
+            # run.json is written last, so this run is still training (or it stopped early)
+            typer.echo(f"{mark} {run_id}  not finished: still training, or it failed (see uv run modal app logs {APP_NAME})")
+        else:
+            loss = meta.get("train_loss")
+            kind = f"smoke ({meta.get('max_steps')} steps, adapter only)" if meta.get("smoke") else "done"
+            evals = meta.get("eval_history") or []
+            eval_loss = f"  eval_loss={evals[-1]['eval_loss']:.4f}" if evals else ""
+            typer.echo(f"{mark} {run_id}  {kind}  loss={loss:.4f}{eval_loss}  epochs={meta.get('epochs')}  "
+                       f"rank={meta.get('rank')}  base={meta.get('base')}  dataset={meta.get('dataset', 'unrecorded')}"
+                       if isinstance(loss, (int, float))
+                       else f"{mark} {run_id}  {kind}  {meta}")
+    typer.echo("\n* = served (set with `ajaanai promote <run_id>`, normally after `ajaanai eval`)" if current
+               else "\nNo run is being served yet: evaluate one, then `ajaanai promote <run_id>`.")
+
+
+@app.command()
 def promote(run_id: str):
     """Make a trained run the one the GPU endpoint serves (takes effect on next container start)."""
     import tempfile
@@ -299,23 +350,92 @@ def promote(run_id: str):
                    f"uv run modal app stop {APP_NAME} && uv run ajaanai deploy")
 
 
+def _graders(s, judge: Optional[list[str]]) -> dict:
+    """judge name -> grader, from --judge (repeatable or comma-separated) or JUDGE_MODEL."""
+    from .llm import make_backend, parse_specs
+    from .train.eval import grader
+
+    return {j.name: grader(j, make_backend(j, s)) for j in parse_specs(judge or s.judge_model)}
+
+
+def _echo_summary(summary: dict) -> None:
+    for name, r in summary.items():
+        if name == "_agreement":
+            continue
+        typer.echo(f"{name:20} style={r['style']} fidelity={r['fidelity']} brevity={r['brevity']} "
+                   f"interactivity={r['interactivity']}  n={r['n']} errors={r['errors']}")
+        typer.echo(f"{'':20} replies/conv={r['replies_per_conversation']} words/reply median={r['reply_words_median']} "
+                   f"p90={r['reply_words_p90']} asks_back={r['asks_back_share']} markdown={r['markdown_share']}")
+        for j, js in (r.get("by_judge") or {}).items():
+            typer.echo(f"{'':20} {j:28} style={js['style']} fidelity={js['fidelity']} brevity={js['brevity']} "
+                       f"interactivity={js['interactivity']}  n={js['n']} errors={js['errors']}")
+    for pair, a in (summary.get("_agreement") or {}).items():
+        typer.echo(f"agreement, {pair} (n={a['n']}; diff = second minus first judge):")
+        for k, v in a.items():
+            if k != "n":
+                typer.echo(f"  {k:13} diff={v['mean_diff']:+} exact={v['exact']} within_1={v['within_1']} corr={v['corr']}"
+                           if v["mean_diff"] is not None else f"  {k:13} no overlapping scores")
+
+
 @app.command("eval")
 def eval_cmd(
     arm: list[str] = typer.Option(..., help="name=https://.../v1 or name=https://.../v1|model (repeatable)"),
-    n: int = typer.Option(100, help="Questions to sample"),
-    questions: Path = typer.Option(None, help="Defaults to data/dataset/eval_questions.jsonl"),
+    n: int = typer.Option(50, help="Conversations to sample"),
+    turns: int = typer.Option(4, help="Replies per conversation (EVAL_CALLER_MODEL plays the caller after the real opening)"),
+    questions: Path = typer.Option(None, help="Defaults to the latest dataset build's eval_questions.jsonl"),
+    judge: Optional[list[str]] = typer.Option(
+        None, help="Judge model, repeatable: anthropic:<model> or openai:<model>. "
+                   "Default JUDGE_MODEL. The first is the headline score; others are reported alongside."),
 ):
-    """Judge arms (endpoints) on held-out questions for style and fidelity."""
+    """Judge arms (endpoints) on whole held-out conversations: style, fidelity, brevity, interactivity."""
     _setup_logging()
+    from .llm import make_backend, parse_spec
     from .train.eval import Arm, run_eval
 
     s = get_settings()
-    s.require("anthropic_api_key")
-    qpath = questions or s.data_dir / "dataset" / "eval_questions.jsonl"
+    caller = parse_spec(s.eval_caller_model)
+    from .dataset import dataset_dir
+
+    qpath = questions or dataset_dir(s) / "eval_questions.jsonl"
     arms = [Arm.parse(a, s.endpoint_bearer_secret) for a in arm]
-    summary = run_eval(qpath, arms, s.judge_model, s.anthropic_api_key, n=n, out_dir=s.data_dir / "eval")
-    for name, r in summary.items():
-        typer.echo(f"{name:20} style={r['style']} fidelity={r['fidelity']} n={r['n']} errors={r['errors']}")
+    out_dir = s.data_dir / "eval"
+    summary = run_eval(qpath, arms, _graders(s, judge), make_backend(caller, s), caller.model, n=n,
+                       turns=turns, out_dir=out_dir)
+    _echo_summary(summary)
+    typer.echo(f"Transcripts, judge notes and summary: {out_dir}/<time>-<arms>.rows.jsonl / .summary.json")
+
+
+@app.command()
+def rejudge(
+    rows_file: Path = typer.Argument(..., help="A saved .rows.jsonl from `ajaanai eval`"),
+    judge: list[str] = typer.Option(..., help="Judge(s) to add, as for `eval --judge`"),
+    questions: Path = typer.Option(None, help="Eval questions the run used, for the reference passages "
+                                              "(default: the latest dataset build's)"),
+):
+    """Score saved eval transcripts with more judges, and report how the judges agree."""
+    _setup_logging()
+    from .train.eval import rejudge as run_rejudge
+    from .train.eval import summaries
+
+    s = get_settings()
+    from .dataset import dataset_dir
+
+    rows = [json.loads(line) for line in rows_file.open() if line.strip()]
+    qpath = questions or dataset_dir(s) / "eval_questions.jsonl"
+    refs = {q["question"]: q for q in map(json.loads, qpath.open())} if qpath.exists() else {}
+    graders = _graders(s, judge)
+    rows = run_rejudge(rows, graders, refs)
+    missing = sum(1 for r in rows if "conversation" in r and not (r.get("reference") or r["question"] in refs))
+    if missing:
+        typer.echo(f"warning: {missing} rows have no reference passage in {qpath}; pass --questions")
+    out = rows_file.with_name(rows_file.name.replace(".rows.jsonl", "") + ".rejudged.rows.jsonl")
+    out.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows))
+    judge_names = list(dict.fromkeys(name for r in rows for name in r.get("judges", {})))
+    arms = list(dict.fromkeys(r["arm"] for r in rows))
+    summary = summaries(rows, arms, judge_names)
+    out.with_name(out.name.replace(".rows.jsonl", ".summary.json")).write_text(json.dumps(summary, indent=2))
+    _echo_summary(summary)
+    typer.echo(f"Rows with every judge's scores: {out}")
 
 
 # --- talking to it -------------------------------------------------------------------------------
@@ -347,7 +467,7 @@ def chat(
             return
         history.append({"role": "user", "content": q})
         answer = []
-        with httpx.stream("POST", f"{base}/v1/chat/completions", headers=headers, timeout=300,
+        with httpx.stream("POST", f"{base}/v1/chat/completions", headers=headers, timeout=300, follow_redirects=True,
                           json={"model": model, "stream": True, "messages": history}) as r:
             r.raise_for_status()
             for line in r.iter_lines():

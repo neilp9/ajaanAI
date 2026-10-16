@@ -51,7 +51,12 @@ class Settings(BaseSettings):
 
     # --- dataset synthesis -----------------------------------------------------
     synth_model: str = "claude-haiku-4-5"  # writes the training conversations (Batches API at 50% cost)
-    judge_model: str = "claude-opus-5-5"  # eval judge
+    # Eval judge(s), comma-separated: a Claude model ("claude-opus-5-5" or "anthropic:<model>"), or
+    # "openai:<model>" for any OpenAI-compatible chat API (JUDGE_BASE_URL; key JUDGE_API_KEY, else
+    # OPENAI_API_KEY). The first judge's scores are the headline; others are reported alongside.
+    judge_model: str = "claude-opus-5-5"
+    judge_base_url: str = "https://api.openai.com/v1"
+    judge_api_key: str | None = None
     eval_caller_model: str = "claude-sonnet-5-5"  # plays the caller in eval conversations
     eval_fraction: float = 0.02
     # Keep the short questions back to the caller that Claude adds to some of his turns (the only

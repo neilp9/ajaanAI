@@ -57,3 +57,63 @@ def test_markdown_catches_italics_but_not_plain_text():
 
     assert _MARKDOWN.search("the self *exists* only as a strategy")
     assert not _MARKDOWN.search("Breathe in. 3 x 4 = 12, and that's fine. Use a * if you must")
+
+
+def test_judge_specs():
+    import pytest
+
+    from ajaanai.train.eval import Judge
+
+    assert Judge.parse("claude-opus-5-5") == Judge("anthropic", "claude-opus-5-5")
+    assert Judge.parse(" openai:some-model ").name == "openai:some-model"
+    assert [j.name for j in Judge.parse_list("claude-opus-5-5, openai:m")] == ["anthropic:claude-opus-5-5", "openai:m"]
+    assert [j.name for j in Judge.parse_list(["a", "openai:b,openai:c"])] == ["anthropic:a", "openai:b", "openai:c"]
+    with pytest.raises(ValueError):
+        Judge.parse("gemini:x")
+
+
+GRADES = {"style": 4, "fidelity": 5, "brevity": 3, "interactivity": 2, "note": "ok"}
+
+
+def test_openai_judge_sends_strict_schema_and_retries(monkeypatch):
+    import json as _json
+    from types import SimpleNamespace as NS
+
+    from ajaanai.train import eval as ev
+
+    calls = []
+
+    def post(url, headers, json, timeout):
+        calls.append((url, headers, json))
+        if len(calls) == 1:
+            return NS(status_code=429)
+        return NS(status_code=200, raise_for_status=lambda: None,
+                  json=lambda: {"choices": [{"message": {"content": _json.dumps(GRADES), "refusal": None}}]})
+
+    monkeypatch.setattr(ev.httpx, "post", post)
+    monkeypatch.setattr(ev.time, "sleep", lambda s: None)
+    q = {"reference": "ref", "channel": "text"}
+    out = ev.judge_openai("https://api.example/v1/", "k", "m", q, [{"role": "user", "content": "hi"}])
+    assert out == GRADES and len(calls) == 2
+    url, headers, body = calls[1]
+    assert url == "https://api.example/v1/chat/completions" and headers == {"Authorization": "Bearer k"}
+    assert body["response_format"]["json_schema"]["strict"] is True and body["messages"][0]["role"] == "system"
+    assert "Channel: text chat" in body["messages"][1]["content"]
+
+
+def test_several_judges_agreement_and_rejudge():
+    from ajaanai.train.eval import agreement, rejudge, score_all, summaries
+
+    graders = {"a": lambda q, m: GRADES, "b": lambda q, m: {**GRADES, "interactivity": 4}, "c": lambda q, m: None}
+    row = {"arm": "x", **score_all(graders, {"reference": "r"}, [])}
+    assert row["interactivity"] == 2 and row["judges"]["b"]["interactivity"] == 4  # first judge is the headline
+    assert row["judges"]["c"] == {"error": "judge declined"}
+    agree = agreement([row, row, row], "a", "b")
+    assert agree["n"] == 3 and agree["interactivity"]["mean_diff"] == 2 and agree["style"]["exact"] == 1
+
+    # an older row: flat scores, no `judges`; its reference comes from the questions file
+    old = {"arm": "x", "question": "Q?", "channel": "voice", "conversation": [], **GRADES}
+    (new,) = rejudge([old], {"b": graders["b"]}, {"Q?": {"reference": "r"}})
+    assert set(new["judges"]) == {"original", "b"} and new["judges"]["original"]["interactivity"] == 2
+    s = summaries([new], ["x"], ["original", "b"])
+    assert s["x"]["by_judge"]["b"]["interactivity"] == 4 and s["_agreement"]["b vs original"]["n"] == 1

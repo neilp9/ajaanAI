@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # APIs are used for full dataset runs (50% cost).
     openai_base_url: str = "https://api.openai.com/v1"
     synth_model: str = "anthropic:claude-haiku-4-5"  # writes the training conversations
+    # Reasoning effort for the synth model: OpenAI reasoning models (gpt-5.x, gpt-6.x, o-series) and the
+    # Claude models that take one; ignored by others. Unset: the model's own default. Not part of the
+    # input hash, so changing it doesn't redo stored results (move them aside to compare).
+    synth_effort: Literal["low", "medium", "high"] | None = None
     # Eval judge(s), comma-separated. The first judge's scores are the headline; others are reported
     # alongside.
     judge_model: str = "anthropic:claude-opus-5-5"

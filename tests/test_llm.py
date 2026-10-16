@@ -185,3 +185,8 @@ def test_openai_batch_cycle():
     assert b.status("batch_1").ended
     results = dict(b.results("batch_1"))
     assert results["p0"].data == {"ok": True} and results["p1"].data is None and results["p2"] is None
+
+
+def test_gpt_6_models_are_reasoning_models():
+    body = OpenAIBackend.body(req("gpt-6.1-sol", effort="high"))
+    assert body["reasoning_effort"] == "high" and body["max_completion_tokens"] > 100

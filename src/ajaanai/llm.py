@@ -155,7 +155,7 @@ class AnthropicBackend:
 # OpenAI reasoning models, which take `reasoning_effort` (others reject it). Their reasoning counts
 # toward max_completion_tokens, so they get this much room on top of the reply's own budget
 # (gpt-5-mini spent ~450 reasoning tokens labelling one short conversation).
-_OPENAI_REASONING = ("gpt-5", "o1", "o3", "o4")
+_OPENAI_REASONING = ("gpt-5", "gpt-6", "o1", "o3", "o4")
 _REASONING_ROOM = 16_000
 _BATCH_DONE = ("completed", "failed", "expired", "cancelled")
 

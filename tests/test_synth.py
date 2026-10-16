@@ -178,3 +178,10 @@ def test_input_hash_is_unchanged_from_the_chat_message_form(tmp_path):
     p = passages()[0]
     old = [{"role": "user", "content": render(p)}]
     assert input_sha(_params("m", p)) == hashlib.sha256(json.dumps(old, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def test_synth_effort_reaches_the_request_but_not_the_input_hash():
+    p = passages()[0]
+    plain, effortful = _params("m", p, shaped=True), _params("m", p, shaped=True, effort="high")
+    assert plain.effort is None and effortful.effort == "high"
+    assert input_sha(plain) == input_sha(effortful)

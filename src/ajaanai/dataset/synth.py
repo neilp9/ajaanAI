@@ -256,14 +256,15 @@ def render(p: Passage) -> str:
     return f"{channel}\n\nTitle: {p.title}\n\n{numbered}\n\nWrite 1-2 conversations."
 
 
-def _params(model: str, p: Passage, shaped: bool = False) -> Request:
+def _params(model: str, p: Passage, shaped: bool = False, effort: str | None = None) -> Request:
     qa = p.question is not None
     if shaped:
         # Written replies are longer than sentence numbers; room too for the model's own thinking.
         system, schema, max_tokens = (SYSTEM_QA_SHAPED if qa else SYSTEM_SHAPED), SCHEMA_SHAPED, 16000
     else:
         system, schema, max_tokens = (SYSTEM_QA if qa else SYSTEM), SCHEMA, 4096
-    return Request(model=model, system=system, user=render(p), schema=schema, max_tokens=max_tokens)
+    return Request(model=model, system=system, user=render(p), schema=schema, max_tokens=max_tokens,
+                   effort=effort)
 
 
 def input_sha(req: Request) -> str:

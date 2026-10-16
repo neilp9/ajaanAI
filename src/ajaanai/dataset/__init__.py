@@ -118,7 +118,8 @@ def build_dataset(cat: Catalog, settings: Settings, *, sample: int | None = None
     synth_store = SynthStore(root)
     shaped = settings.dataset_reply_mode == "shaped"
     synth_spec = parse_spec(settings.synth_model)
-    synth_items = [(p.id, _params(synth_spec.model, p, shaped=shaped)) for p in passages]
+    synth_items = [(p.id, _params(synth_spec.model, p, shaped=shaped, effort=settings.synth_effort))
+                   for p in passages]
     run(make_backend(synth_spec, settings), synth_items, synth_store)
     synth = synth_store.load(expected(synth_items))
     extras = dict(ask_back=settings.dataset_ask_back, acknowledge=settings.dataset_acknowledge, shaped=shaped)
